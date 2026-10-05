@@ -314,9 +314,20 @@ create policy pdc_prof_admin on public.pdc_profiles
   with check ((select private.pdc_es_admin()));
 
 -- Colaboradores
+--
+-- Importante: estas políticas NO consultan la propia tabla pdc_colaboradores.
+-- Al hacer INSERT ... RETURNING, Postgres verifica la política de lectura
+-- contra el renglón recién creado, y una subconsulta sobre la misma tabla usa
+-- la foto anterior del dato y no lo encuentra: el alta se rechazaría con el
+-- mensaje "new row violates row-level security policy". Por eso la condición
+-- se evalúa sobre las columnas del propio renglón. Las subconsultas de rol se
+-- siguen resolviendo una sola vez por consulta.
 create policy pdc_col_sel on public.pdc_colaboradores
   for select to authenticated
-  using (id in (select private.pdc_cols_lectura()));
+  using (
+    (select private.pdc_rol()) in ('admin','mentor')
+    or user_id = (select auth.uid())
+  );
 
 create policy pdc_col_ins on public.pdc_colaboradores
   for insert to authenticated
@@ -327,12 +338,22 @@ create policy pdc_col_ins on public.pdc_colaboradores
 
 create policy pdc_col_upd on public.pdc_colaboradores
   for update to authenticated
-  using (id in (select private.pdc_cols_mentor()))
-  with check (id in (select private.pdc_cols_mentor()));
+  using (
+    (select private.pdc_es_admin())
+    or ((select private.pdc_rol()) = 'mentor' and mentor_id = (select auth.uid()))
+  )
+  with check (
+    (select private.pdc_es_admin())
+    or ((select private.pdc_rol()) = 'mentor' and mentor_id = (select auth.uid()))
+  );
 
 create policy pdc_col_del on public.pdc_colaboradores
   for delete to authenticated
   using ((select private.pdc_es_admin()));
+
+-- En las tablas hijas sí se consulta pdc_colaboradores, que es una tabla
+-- distinta de la que se está escribiendo, así que no hay ese problema y se
+-- gana la ventaja de resolver el conjunto una sola vez por consulta.
 
 -- Avance del plan: el colaborador marca sus tareas; el mentor también puede.
 create policy pdc_av_sel on public.pdc_plan_avance
