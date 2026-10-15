@@ -9,7 +9,7 @@ import { clave } from "./metricas.js";
 import {
   h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
   lampara, barra, dinero, numero, pct, vacio, radar, barras, barrasH, lineas, dial, color, cls, tarjeta, uid,
-  barraFiltros, lineaTiempo, fecha,
+  barraFiltros, lineaTiempo, tacometroTareas, fecha,
 } from "./ui.js";
 
 /* ============================================================== PANEL ===== */
@@ -118,17 +118,25 @@ function bloqueRitmo(cal, ctx) {
   const discrepa = (cal.desviacion < 0 && brecha >= 0) || (cal.desviacion >= 0 && brecha <= -5);
 
   return panel("Ritmo del programa", cal.detalle,
-    h("div", { class: "ritmo" },
-      h("div", { class: "ritmo-veredicto" },
-        h("strong", { class: "ritmo-titulo v-" + cal.estado, text: cal.veredicto }),
-        lampara(lecturaTareas.estado, lecturaTareas.texto)),
-      lineaTiempo(cal),
-      dias,
-      discrepa ? h("p", { class: "ritmo-nota" },
-        cal.desviacion < 0
-          ? "La semana marcada va atrasada pero las tareas están al día: probablemente falta mover el marcador de semana."
-          : "El marcador de semana va al corriente pero faltan tareas por completar: el avance real está por debajo.")
-        : null));
+    h("div", { class: "ritmo-cols" },
+      h("div", { class: "ritmo" },
+        h("div", { class: "ritmo-veredicto" },
+          h("strong", { class: "ritmo-titulo v-" + cal.estado, text: cal.veredicto }),
+          lampara(lecturaTareas.estado, lecturaTareas.texto)),
+        lineaTiempo(cal),
+        dias,
+        discrepa ? h("p", { class: "ritmo-nota" },
+          cal.desviacion < 0
+            ? "La semana marcada va atrasada pero las tareas están al día: probablemente falta mover el marcador de semana."
+            : "El marcador de semana va al corriente pero faltan tareas por completar: el avance real está por debajo.")
+          : null),
+      h("div", { class: "ritmo-tacometro" },
+        h("h5", { text: "Cumplimiento de tareas" }),
+        tacometroTareas(cal.tareasHechas, cal.tareasEsperadas),
+        h("p", { class: "tacometro-pie",
+          text: cal.brechaTareas >= 0
+            ? "Al corriente con lo que toca a la fecha."
+            : `Faltan ${-cal.brechaTareas} tareas para estar al día.` }))));
 }
 
 const datoFecha = (titulo, valor, nota) =>

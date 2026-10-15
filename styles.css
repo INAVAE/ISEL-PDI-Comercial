@@ -228,9 +228,9 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .hero { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
   display: flex; gap: 34px; padding: 24px 30px; align-items: center; flex-wrap: wrap; }
 .hero-dial { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.dial { width: 250px; height: 200px; }
-.dial-num { font-family: 'Barlow Condensed', sans-serif; font-size: 42px; font-weight: 700; fill: var(--steel); }
-.dial-lab { font-size: 9.5px; fill: var(--graphite); font-family: 'IBM Plex Sans', sans-serif; }
+.dial { width: 250px; height: 225px; }
+.dial-num { font-family: 'Barlow Condensed', sans-serif; font-size: 38px; font-weight: 700; fill: var(--steel); }
+.dial-lab { font-size: 10.5px; fill: var(--graphite); font-family: 'IBM Plex Sans', sans-serif; }
 .hero-texto { flex: 1; min-width: 280px; }
 .hero-texto h2 { font-size: 26px; margin: 0 0 6px; }
 .hero-texto p { margin: 0 0 16px; color: var(--graphite); max-width: 64ch; }
@@ -284,6 +284,15 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .acciones-fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 
 /* Ritmo del programa */
+.ritmo-cols { display: flex; gap: 34px; align-items: flex-start; flex-wrap: wrap; }
+.ritmo-cols > .ritmo { flex: 1; min-width: 420px; }
+.ritmo-tacometro { flex: 0 0 262px; text-align: center; }
+.ritmo-tacometro h5 { margin: 0 0 2px; color: var(--graphite); font-size: 14px; }
+/* A tamaño natural del dibujo para que las etiquetas no se encojan */
+.ritmo-tacometro .dial { width: 260px; height: 234px; }
+.tacometro-pie { margin: 2px 0 0; font-size: 12px; color: var(--graphite); max-width: 260px; }
+.svg-chart .dial-marca, .dial-marca { font-size: 9.5px; fill: var(--graphite); letter-spacing: .02em;
+  font-family: 'IBM Plex Sans', sans-serif; }
 .ritmo { display: flex; flex-direction: column; gap: 14px; }
 .ritmo-veredicto { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .ritmo-titulo { font-family: 'Barlow Condensed', sans-serif; font-size: 24px; }

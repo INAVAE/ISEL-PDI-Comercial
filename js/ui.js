@@ -362,34 +362,100 @@ const PALETA = ["var(--c-tinta)", "var(--c-exito)", "var(--c-aviso)", "var(--c-a
 export const color = (i) => PALETA[i % PALETA.length];
 
 /* Indicador de aguja para los puntos de graduación */
-export function dial(valor, etiqueta = "de 100 puntos de graduación") {
-  const v = Math.max(0, Math.min(100, Math.round(valor)));
+/* ---------------------------------------------------------- TACÓMETRO ---
+   Carátula con aguja y zonas de color. La usan el indicador de graduación y
+   el de cumplimiento de tareas, para que ambos se lean igual.
+
+   zonas:  [{ hasta, color }]  tramos sucesivos desde 0 hasta `max`
+   marca:  valor donde se dibuja una referencia destacada (por ejemplo, la meta)
+   -------------------------------------------------------------------------- */
+
+export function tacometro({ valor, max = 100, zonas, centro, etiqueta, marca, marcaTexto, aguja, descripcion, progreso = true }) {
+  const v = Math.max(0, Math.min(max, valor));
   const cx = 130, cy = 122, r = 92, ini = -220, barrido = 260;
-  const ang = ini + (v / 100) * barrido;
+  const ang = (x) => ini + (x / max) * barrido;
   const pol = (a, rad) => [cx + rad * Math.cos((a * Math.PI) / 180), cy + rad * Math.sin((a * Math.PI) / 180)];
   const arco = (a1, a2, rad) => {
     const [x1, y1] = pol(a1, rad), [x2, y2] = pol(a2, rad);
     return `M ${x1} ${y1} A ${rad} ${rad} 0 ${Math.abs(a2 - a1) > 180 ? 1 : 0} 1 ${x2} ${y2}`;
   };
+
+  const tramos = [];
+  let desde = 0;
+  (zonas || []).forEach((z) => {
+    tramos.push(h("path", { d: arco(ang(desde), ang(z.hasta), r), stroke: z.color,
+      "stroke-width": 14, fill: "none", opacity: 0.5 }));
+    desde = z.hasta;
+  });
+
   const ticks = [];
   for (let i = 0; i <= 10; i++) {
     const a = ini + i * (barrido / 10);
     const [x1, y1] = pol(a, i % 5 === 0 ? 70 : 78), [x2, y2] = pol(a, 86);
-    ticks.push(h("line", { x1, y1, x2, y2, stroke: i % 5 === 0 ? "var(--c-tinta)" : "var(--c-apagado)", "stroke-width": i % 5 === 0 ? 2 : 1 }));
+    ticks.push(h("line", { x1, y1, x2, y2,
+      stroke: i % 5 === 0 ? "var(--c-tinta)" : "var(--c-apagado)", "stroke-width": i % 5 === 0 ? 2 : 1 }));
   }
-  const [ax, ay] = pol(ang, 74);
-  return h("svg", { viewBox: "0 0 260 208", class: "dial", role: "img", "aria-label": `${v} de 100 puntos` },
+
+  /* Referencia destacada: la meta */
+  let referencia = null;
+  if (marca !== undefined && marca <= max) {
+    const a = ang(marca);
+    const [x1, y1] = pol(a, 66), [x2, y2] = pol(a, 100);
+    const [tx, ty] = pol(a, 110);
+    referencia = h("g", {},
+      h("line", { x1, y1, x2, y2, stroke: "var(--graphite)", "stroke-width": 2, "stroke-dasharray": "3 2" }),
+      marcaTexto ? h("text", { x: tx, y: ty, "text-anchor": "middle", class: "dial-marca", text: marcaTexto }) : null);
+  }
+
+  const [ax, ay] = pol(ang(v), 74);
+  const colorAguja = aguja || "var(--c-falla)";
+
+  return h("svg", { viewBox: "0 0 260 234", class: "dial", role: "img",
+    "aria-label": descripcion || `${Math.round(v)} de ${max}` },
     h("path", { d: arco(ini, ini + barrido, r), stroke: "var(--g-arco)", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
-    h("path", { d: arco(ini, ini + 0.6 * barrido, r), stroke: "var(--c-falla)", "stroke-width": 14, fill: "none", opacity: 0.22 }),
-    h("path", { d: arco(ini + 0.6 * barrido, ini + 0.85 * barrido, r), stroke: "var(--c-aviso)", "stroke-width": 14, fill: "none", opacity: 0.28 }),
-    h("path", { d: arco(ini + 0.85 * barrido, ini + barrido, r), stroke: "var(--c-exito)", "stroke-width": 14, fill: "none", opacity: 0.3 }),
-    v > 0 && h("path", { d: arco(ini, ang, r), stroke: "var(--c-tinta)", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
+    ...tramos,
+    progreso && v > 0 && h("path", { d: arco(ini, ang(v), r), stroke: "var(--c-tinta)", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
     ...ticks,
-    h("line", { x1: cx, y1: cy, x2: ax, y2: ay, stroke: "var(--c-falla)", "stroke-width": 3.5, "stroke-linecap": "round" }),
+    referencia,
+    h("line", { x1: cx, y1: cy, x2: ax, y2: ay, stroke: colorAguja, "stroke-width": 3.5, "stroke-linecap": "round" }),
     h("circle", { cx, cy, r: 9, fill: "var(--c-tinta)" }),
     h("circle", { cx, cy, r: 3.5, fill: "var(--g-centro)" }),
-    h("text", { x: cx, y: cy + 52, "text-anchor": "middle", class: "dial-num", text: String(v) }),
-    h("text", { x: cx, y: cy + 69, "text-anchor": "middle", class: "dial-lab", text: etiqueta }));
+    /* La lectura va bajo el arco: dentro, la aguja le pasaba por encima */
+    h("text", { x: cx, y: cy + 76, "text-anchor": "middle", class: "dial-num", text: centro }),
+    h("text", { x: cx, y: cy + 95, "text-anchor": "middle", class: "dial-lab", text: etiqueta }));
+}
+
+/* Puntos de graduación */
+export function dial(valor, etiqueta = "de 100 puntos de graduación") {
+  const v = Math.max(0, Math.min(100, Math.round(valor)));
+  return tacometro({
+    valor: v, max: 100, centro: String(v), etiqueta,
+    descripcion: `${v} de 100 puntos de graduación`,
+    zonas: [
+      { hasta: 60, color: "var(--c-falla)" },
+      { hasta: 85, color: "var(--c-aviso)" },
+      { hasta: 100, color: "var(--c-exito)" },
+    ],
+  });
+}
+
+/* Cumplimiento de tareas contra las que ya deberían estar hechas.
+   La escala llega a 150 % para que ir por delante también se vea. */
+export function tacometroTareas(hechas, esperadas) {
+  const pctCumplido = esperadas > 0 ? (hechas / esperadas) * 100 : (hechas > 0 ? 150 : 100);
+  const v = Math.max(0, Math.min(150, Math.round(pctCumplido)));
+  const color = v >= 95 ? "var(--c-exito)" : v >= 70 ? "var(--c-aviso)" : "var(--c-falla)";
+  return tacometro({
+    valor: v, max: 150, aguja: color, progreso: false,
+    centro: v + "%", etiqueta: `${hechas} de ${esperadas} tareas`,
+    marca: 100, marcaTexto: "meta",
+    descripcion: `${hechas} de ${esperadas} tareas que ya deberían estar hechas, ${v} por ciento`,
+    zonas: [
+      { hasta: 70, color: "var(--c-falla)" },
+      { hasta: 95, color: "var(--c-aviso)" },
+      { hasta: 150, color: "var(--c-exito)" },
+    ],
+  });
 }
 
 /* Radar de competencias. series: [{nombre, color, valores:[]}], ejes: [] */
