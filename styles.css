@@ -297,9 +297,11 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .sin-acceso-tit { font-size: 22px; margin: 0 0 6px; }
 th.ordenable { cursor: pointer; user-select: none; }
 th.ordenable:hover { color: var(--steel); }
-th.ordenable::after { content: ' \\2195'; opacity: .35; }
-th.orden-asc::after { content: ' \\2191'; opacity: 1; color: var(--signal); }
-th.orden-desc::after { content: ' \\2193'; opacity: 1; color: var(--signal); }
+/* Indicador de orden: tenue mientras la columna solo es ordenable,
+   y en ámbar cuando es la que está ordenando la tabla. */
+th.ordenable::after { content: '\2195'; margin-left: 5px; opacity: .3; font-size: 11px; }
+th.orden-asc::after { content: '\2191'; opacity: 1; color: var(--signal); }
+th.orden-desc::after { content: '\2193'; opacity: 1; color: var(--signal); }
 
 /* Interruptor de tema */
 .btn-tema { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent;
