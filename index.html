@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ISEL · Plan de Desarrollo Comercial</title>
 <meta name="description" content="Seguimiento del programa de desarrollo de vendedor interno a consultor comercial.">
+<meta name="theme-color" content="#22303B">
+<script>
+/* Se aplica el tema antes de pintar para que no haya un destello claro
+   al cargar en modo oscuro. */
+(function () {
+  try {
+    var t = localStorage.getItem("isel_pdc_tema");
+    if (!t) t = matchMedia("(prefers-color-scheme: dark)").matches ? "oscuro" : "claro";
+    document.documentElement.dataset.tema = t;
+    if (t === "oscuro") document.querySelector('meta[name="theme-color"]').content = "#0D1317";
+  } catch (e) { document.documentElement.dataset.tema = "claro"; }
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%2322303B'/><path d='M8 22V10h3v12H8zm6 0V14h3v8h-3zm6 0V17h3v5h-3z' fill='%23F0A500'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

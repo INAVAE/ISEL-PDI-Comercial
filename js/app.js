@@ -3,7 +3,7 @@
    =========================================================================== */
 
 import { auth, miPerfil, colaboradores, cargarExpediente, plantilla, perfiles } from "./db.js";
-import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero } from "./ui.js";
+import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, iniciarTema } from "./ui.js";
 import { metricas } from "./metricas.js";
 import { vistaResumen, vistaColaboradores, vistaUsuarios, vistaPlantilla, vistaCuenta } from "./vistas-gestion.js";
 import { vistaPanel, vistaRuta, vistaCompetencias, vistaKpis, vistaGraduacion, vistaRiesgos, vistaConfiguracion } from "./vistas-programa.js";
@@ -139,6 +139,7 @@ export function pintar() {
     h("div", { class: "rail-pie" },
       h("span", { class: "rail-quien", text: estado.perfil.nombre || estado.perfil.email }),
       h("span", { class: "rail-rol", text: etiquetaRol(permisos.rol) }),
+      botonTema(),
       boton("Cerrar sesión", async () => { await auth.salir(); location.reload(); }, "ghost")));
 
   const individual = !!(menu.find((x) => x.id === estado.vista) || {}).requiereCol;
@@ -237,7 +238,8 @@ function pantallaAcceso(mensaje) {
       h("div", { class: "login-marca" }, h("strong", { text: "ISEL" }), h("span", { text: "Plan de desarrollo comercial" })),
       h("p", { class: "login-intro", text: "Entra con las credenciales que te dio el administrador del programa." }),
       mensaje && h("p", { class: "login-error", text: mensaje }),
-      form)));
+      form,
+      h("div", { class: "login-pie" }, botonTema()))));
 }
 
 const traducirError = (msg) =>
@@ -275,4 +277,5 @@ export async function arrancar() {
 }
 
 auth.alCambiar((s) => { if (!s && estado.perfil) location.reload(); });
+iniciarTema();
 arrancar();

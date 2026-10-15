@@ -30,6 +30,80 @@ export const vaciar = (el) => { while (el.firstChild) el.removeChild(el.firstChi
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const cls = (...xs) => xs.filter(Boolean).join(" ");
 
+/* ---------------------------------------------------------------- TEMA ---
+   Claro u oscuro. Si la persona no ha elegido, se respeta la preferencia
+   del sistema operativo y se sigue cualquier cambio que haga ahí.
+   -------------------------------------------------------------------------- */
+
+const LLAVE_TEMA = "isel_pdc_tema";
+
+const almacen = {
+  leer() { try { return localStorage.getItem(LLAVE_TEMA); } catch { return null; } },
+  guardar(v) { try { localStorage.setItem(LLAVE_TEMA, v); } catch { /* modo privado */ } },
+};
+
+const prefiereOscuro = () =>
+  window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+export const temaActual = () => document.documentElement.dataset.tema || "claro";
+
+export function aplicarTema(tema) {
+  document.documentElement.dataset.tema = tema;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.content = tema === "oscuro" ? "#0D1317" : "#22303B";
+}
+
+export function iniciarTema() {
+  const elegido = almacen.leer();
+  aplicarTema(elegido || (prefiereOscuro() ? "oscuro" : "claro"));
+  // Sin elección explícita, la interfaz sigue al sistema
+  if (!elegido && window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+      if (!almacen.leer()) aplicarTema(e.matches ? "oscuro" : "claro");
+    });
+  }
+}
+
+export function alternarTema() {
+  const nuevo = temaActual() === "oscuro" ? "claro" : "oscuro";
+  aplicarTema(nuevo);
+  almacen.guardar(nuevo);
+  return nuevo;
+}
+
+/* Botón de sol y luna. Se redibuja solo al cambiar el tema. */
+export function botonTema() {
+  const btn = h("button", { class: "btn-tema", type: "button" });
+  const pintar = () => {
+    const oscuro = temaActual() === "oscuro";
+    btn.title = oscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+    btn.setAttribute("aria-label", btn.title);
+    vaciar(btn).append(oscuro ? iconoSol() : iconoLuna(),
+      h("span", { text: oscuro ? "Modo claro" : "Modo oscuro" }));
+  };
+  btn.addEventListener("click", () => { alternarTema(); pintar(); });
+  pintar();
+  return btn;
+}
+
+const iconoSol = () => h("svg", { viewBox: "0 0 24 24", class: "icono", "aria-hidden": "true" },
+  h("circle", { cx: 12, cy: 12, r: 4.6, fill: "currentColor" }),
+  ...[0, 45, 90, 135, 180, 225, 270, 315].map((g) => {
+    const r = (g * Math.PI) / 180;
+    return h("line", {
+      x1: 12 + 7.4 * Math.cos(r), y1: 12 + 7.4 * Math.sin(r),
+      x2: 12 + 10 * Math.cos(r), y2: 12 + 10 * Math.sin(r),
+      stroke: "currentColor", "stroke-width": 1.9, "stroke-linecap": "round",
+    });
+  }));
+
+const iconoLuna = () => h("svg", { viewBox: "0 0 24 24", class: "icono", "aria-hidden": "true" },
+  h("path", {
+    d: "M20.3 14.6A8.6 8.6 0 0 1 9.4 3.7a8.6 8.6 0 1 0 10.9 10.9z",
+    fill: "currentColor",
+  }));
+
+
 /* -------------------------------------------------------------- FORMATOS -- */
 
 export function dinero(n) {
@@ -149,7 +223,7 @@ export function confirmar(texto, alAceptar) {
 
 /* =========================================================== GRÁFICAS ===== */
 
-const PALETA = ["#22303B", "#1D8A5F", "#F0A500", "#8FA0AC", "#C0392B", "#5E7382", "#7D6BA8", "#C98A3A"];
+const PALETA = ["var(--c-tinta)", "var(--c-exito)", "var(--c-aviso)", "var(--c-acero2)", "var(--c-falla)", "var(--c-acero3)", "var(--c-violeta)", "var(--c-arena)"];
 export const color = (i) => PALETA[i % PALETA.length];
 
 /* Indicador de aguja para los puntos de graduación */
@@ -166,19 +240,19 @@ export function dial(valor, etiqueta = "de 100 puntos de graduación") {
   for (let i = 0; i <= 10; i++) {
     const a = ini + i * (barrido / 10);
     const [x1, y1] = pol(a, i % 5 === 0 ? 70 : 78), [x2, y2] = pol(a, 86);
-    ticks.push(h("line", { x1, y1, x2, y2, stroke: i % 5 === 0 ? "#22303B" : "#A9B0AB", "stroke-width": i % 5 === 0 ? 2 : 1 }));
+    ticks.push(h("line", { x1, y1, x2, y2, stroke: i % 5 === 0 ? "var(--c-tinta)" : "var(--c-apagado)", "stroke-width": i % 5 === 0 ? 2 : 1 }));
   }
   const [ax, ay] = pol(ang, 74);
   return h("svg", { viewBox: "0 0 260 208", class: "dial", role: "img", "aria-label": `${v} de 100 puntos` },
-    h("path", { d: arco(ini, ini + barrido, r), stroke: "#DDE0DA", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
-    h("path", { d: arco(ini, ini + 0.6 * barrido, r), stroke: "#C0392B", "stroke-width": 14, fill: "none", opacity: 0.22 }),
-    h("path", { d: arco(ini + 0.6 * barrido, ini + 0.85 * barrido, r), stroke: "#F0A500", "stroke-width": 14, fill: "none", opacity: 0.28 }),
-    h("path", { d: arco(ini + 0.85 * barrido, ini + barrido, r), stroke: "#1D8A5F", "stroke-width": 14, fill: "none", opacity: 0.3 }),
-    v > 0 && h("path", { d: arco(ini, ang, r), stroke: "#22303B", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
+    h("path", { d: arco(ini, ini + barrido, r), stroke: "var(--g-arco)", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
+    h("path", { d: arco(ini, ini + 0.6 * barrido, r), stroke: "var(--c-falla)", "stroke-width": 14, fill: "none", opacity: 0.22 }),
+    h("path", { d: arco(ini + 0.6 * barrido, ini + 0.85 * barrido, r), stroke: "var(--c-aviso)", "stroke-width": 14, fill: "none", opacity: 0.28 }),
+    h("path", { d: arco(ini + 0.85 * barrido, ini + barrido, r), stroke: "var(--c-exito)", "stroke-width": 14, fill: "none", opacity: 0.3 }),
+    v > 0 && h("path", { d: arco(ini, ang, r), stroke: "var(--c-tinta)", "stroke-width": 14, fill: "none", "stroke-linecap": "round" }),
     ...ticks,
-    h("line", { x1: cx, y1: cy, x2: ax, y2: ay, stroke: "#C0392B", "stroke-width": 3.5, "stroke-linecap": "round" }),
-    h("circle", { cx, cy, r: 9, fill: "#22303B" }),
-    h("circle", { cx, cy, r: 3.5, fill: "#E6E7E2" }),
+    h("line", { x1: cx, y1: cy, x2: ax, y2: ay, stroke: "var(--c-falla)", "stroke-width": 3.5, "stroke-linecap": "round" }),
+    h("circle", { cx, cy, r: 9, fill: "var(--c-tinta)" }),
+    h("circle", { cx, cy, r: 3.5, fill: "var(--g-centro)" }),
     h("text", { x: cx, y: cy + 52, "text-anchor": "middle", class: "dial-num", text: String(v) }),
     h("text", { x: cx, y: cy + 69, "text-anchor": "middle", class: "dial-lab", text: etiqueta }));
 }
@@ -194,11 +268,11 @@ export function radar(ejes, series, max = 5) {
   };
   const anillos = [1, 2, 3, 4, 5].map((k) => {
     const pts = ejes.map((_, i) => punto(i, (max * k) / 5).join(",")).join(" ");
-    return h("polygon", { points: pts, fill: "none", stroke: "#D2D5CE", "stroke-width": k === 5 ? 1.4 : 0.8 });
+    return h("polygon", { points: pts, fill: "none", stroke: "var(--g-anillo)", "stroke-width": k === 5 ? 1.4 : 0.8 });
   });
   const radios = ejes.map((_, i) => {
     const [x, y] = punto(i, max);
-    return h("line", { x1: cx, y1: cy, x2: x, y2: y, stroke: "#E0E2DC" });
+    return h("line", { x1: cx, y1: cy, x2: x, y2: y, stroke: "var(--g-radio)" });
   });
   const capas = series.map((s) =>
     h("polygon", {
@@ -260,7 +334,7 @@ export function barras(categorias, series, opts = {}) {
   const lineas = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const y = mt + ih - ih * f;
     return h("g", {},
-      h("line", { x1: ml, y1: y, x2: W - mr, y2: y, stroke: "#E4E6E0" }),
+      h("line", { x1: ml, y1: y, x2: W - mr, y2: y, stroke: "var(--g-reja)" }),
       h("text", { x: ml - 7, y: y + 4, "text-anchor": "end", class: "tick", text: opts.formato ? opts.formato(max * f) : Math.round(max * f) }));
   });
   const ejeX = categorias.map((c, i) =>
@@ -281,7 +355,7 @@ export function barrasH(categorias, valores, opts = {}) {
     const col = opts.colores ? opts.colores[i] : color(i);
     return h("g", {},
       h("text", { x: ml - 10, y: i * filaAlto + 20, "text-anchor": "end", class: "tick", text: c }),
-      h("rect", { x: ml, y: i * filaAlto + 7, width: iw, height: filaAlto - 14, fill: "#F0F1ED", rx: 2 }),
+      h("rect", { x: ml, y: i * filaAlto + 7, width: iw, height: filaAlto - 14, fill: "var(--g-pista)", rx: 2 }),
       h("rect", { x: ml, y: i * filaAlto + 7, width: Math.max(0, ancho), height: filaAlto - 14, fill: col, rx: 2 },
         h("title", { text: `${c}: ${opts.formato ? opts.formato(v) : v}` })),
       h("text", { x: ml + Math.max(ancho, 0) + 7, y: i * filaAlto + 20, class: "tick", text: opts.formato ? opts.formato(v) : v }));
@@ -306,12 +380,12 @@ export function lineas(categorias, series, opts = {}) {
       ...pts.map((p) => h("circle", { cx: p[0], cy: p[1], r: 4, fill: s.color })));
   });
   const ref = opts.referencia !== undefined
-    ? h("g", {}, h("line", { x1: ml, y1: y(opts.referencia), x2: W - mr, y2: y(opts.referencia), stroke: "#C0392B", "stroke-dasharray": "5 4", "stroke-width": 1.4 }),
+    ? h("g", {}, h("line", { x1: ml, y1: y(opts.referencia), x2: W - mr, y2: y(opts.referencia), stroke: "var(--c-falla)", "stroke-dasharray": "5 4", "stroke-width": 1.4 }),
       h("text", { x: W - mr, y: y(opts.referencia) - 6, "text-anchor": "end", class: "tick", text: opts.refTexto || "" }))
     : null;
   const guias = [0, 0.25, 0.5, 0.75, 1].map((f) => {
     const yy = mt + ih - ih * f;
-    return h("g", {}, h("line", { x1: ml, y1: yy, x2: W - mr, y2: yy, stroke: "#E4E6E0" }),
+    return h("g", {}, h("line", { x1: ml, y1: yy, x2: W - mr, y2: yy, stroke: "var(--g-reja)" }),
       h("text", { x: ml - 7, y: yy + 4, "text-anchor": "end", class: "tick", text: opts.formato ? opts.formato(max * f) : Math.round(max * f * 10) / 10 }));
   });
   const ejeX = categorias.map((c, i) => h("text", { x: x(i), y: H - 10, "text-anchor": "middle", class: "tick", text: c }));

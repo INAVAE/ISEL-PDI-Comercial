@@ -52,25 +52,25 @@ export function vistaPanel(ctx) {
     h("div", { class: "grid-2" },
       panel("Competencias por grupo", "Línea base, corte más reciente y nivel requerido.",
         radar(ejes, [
-          { nombre: "Inicial", color: "#A9B0AB", valores: prog.grupos.map((g) => Number(m.promedioGrupo(g.id, "ini").toFixed(2))) },
-          { nombre: "Requerido", color: "#F0A500", valores: req, relleno: 0.1 },
-          { nombre: "Actual", color: "#22303B", valores: prog.grupos.map((g) => Number(m.promedioGrupo(g.id, m.ultimoCorte).toFixed(2))) },
+          { nombre: "Inicial", color: "var(--c-apagado)", valores: prog.grupos.map((g) => Number(m.promedioGrupo(g.id, "ini").toFixed(2))) },
+          { nombre: "Requerido", color: "var(--c-aviso)", valores: req, relleno: 0.1 },
+          { nombre: "Actual", color: "var(--c-tinta)", valores: prog.grupos.map((g) => Number(m.promedioGrupo(g.id, m.ultimoCorte).toFixed(2))) },
         ])),
 
       panel("Visitas por mes", "Plan del programa contra ejecución real.",
         barras(prog.planVisitas.map((p) => "Mes " + p.mes), [
-          { nombre: "Plan", color: "#C8CCC5", valores: prog.planVisitas.map((p) => p.observa + p.acompanado + p.lidera + p.autonoma) },
-          { nombre: "Real", color: "#22303B", valores: prog.planVisitas.map((p) => m.visitas.filter((v) => Number(v.mes) === p.mes).length) },
-          { nombre: "Lideradas solo", color: "#1D8A5F", valores: prog.planVisitas.map((p) => m.visitas.filter((v) => Number(v.mes) === p.mes && v.tipo === "autonoma").length) },
+          { nombre: "Plan", color: "var(--c-neutro)", valores: prog.planVisitas.map((p) => p.observa + p.acompanado + p.lidera + p.autonoma) },
+          { nombre: "Real", color: "var(--c-tinta)", valores: prog.planVisitas.map((p) => m.visitas.filter((v) => Number(v.mes) === p.mes).length) },
+          { nombre: "Lideradas solo", color: "var(--c-exito)", valores: prog.planVisitas.map((p) => m.visitas.filter((v) => Number(v.mes) === p.mes && v.tipo === "autonoma").length) },
         ])),
 
       panel("Embudo comercial", "Oportunidades registradas por etapa.",
         embudo.length ? barrasH(embudo.map((e) => e.nombre), embudo.map((e) => m.opps.filter((o) => o.etapa === e.id).length),
-          { colores: embudo.map((e, i) => (e.id === "ganada" ? "#1D8A5F" : ["#9FB0BB", "#7C8F9C", "#5A707F", "#3A4E5C"][Math.min(i, 3)])) })
+          { colores: embudo.map((e, i) => (e.id === "ganada" ? "var(--c-exito)" : ["var(--c-acero1)", "var(--c-acero2)", "var(--c-acero3)", "var(--c-acero4)"][Math.min(i, 3)])) })
           : vacio("Sin etapas configuradas", "Defínelas en Configurar programa.")),
 
       panel("Evolución del scorecard", "Promedio ponderado en cada corte. La referencia de graduación es " + m.umbrales.scoreApto.toFixed(1) + ".",
-        lineas(cortesNom, [{ nombre: "Scorecard", color: "#C0392B", valores: CORTES.map((c) => m.scoreCorte(c.id) || null) }],
+        lineas(cortesNom, [{ nombre: "Scorecard", color: "var(--c-falla)", valores: CORTES.map((c) => m.scoreCorte(c.id) || null) }],
           { max: 5, referencia: m.umbrales.scoreApto, refTexto: "graduación" }))),
 
     panel("Alertas del programa", null, h("ul", { class: "alertas" }, ...alertas(m))));
@@ -348,9 +348,9 @@ export function vistaKpis(ctx) {
         ].filter(Boolean))),
       panel("Pipeline y ventas", null,
         barras(meses.map((n) => "Mes " + n), [
-          kPip && { nombre: kPip.nombre, color: "#C8CCC5", valores: serie(kPip.id) },
-          kPipC && { nombre: kPipC.nombre, color: "#3D5464", valores: serie(kPipC.id) },
-          kVen && { nombre: kVen.nombre, color: "#1D8A5F", valores: serie(kVen.id) },
+          kPip && { nombre: kPip.nombre, color: "var(--c-neutro)", valores: serie(kPip.id) },
+          kPipC && { nombre: kPipC.nombre, color: "var(--c-acero4)", valores: serie(kPipC.id) },
+          kVen && { nombre: kVen.nombre, color: "var(--c-exito)", valores: serie(kVen.id) },
         ].filter(Boolean), { formato: dinero, ml: 62 }))),
 
     panel("Plan de campo: de observar a liderar",

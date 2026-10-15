@@ -30,7 +30,7 @@ export function vistaVisitas(ctx) {
     panel("Progresión de campo", "De observar al mentor a liderar solo.",
       barras(m.prog.planVisitas.map((p) => "Mes " + p.mes),
         TIPOS_VISITA.map((t, i) => ({
-          nombre: t.nombre, color: ["#C8CCC5", "#8FA0AC", "#3D5464", "#1D8A5F"][i],
+          nombre: t.nombre, color: ["var(--c-neutro)", "var(--c-acero2)", "var(--c-acero4)", "var(--c-exito)"][i],
           valores: progresion.map((r) => r.filter((v) => v.tipo === t.id).length),
         })), { apilado: true })),
 
