@@ -95,8 +95,8 @@ function bloqueRitmo(cal, ctx) {
           ? boton("Registrar la fecha", () => ctx.ir("colaboradores"), "ghost") : null));
 
   const dias = h("div", { class: "ritmo-fechas" },
-    datoFecha("Inicio", fecha(cal.inicio.toISOString().slice(0, 10))),
-    datoFecha("Término previsto", fecha(cal.fin.toISOString().slice(0, 10)),
+    datoFecha("Inicio", fecha(cal.inicio)),
+    datoFecha("Término previsto", fecha(cal.fin),
       cal.finCalculado ? "calculado a " + cal.semanas + " semanas" : "definido por el mentor"),
     cal.porArrancar ? null
       : datoFecha(cal.terminado ? "Plazo vencido" : "Días restantes",

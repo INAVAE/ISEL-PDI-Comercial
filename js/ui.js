@@ -114,7 +114,17 @@ export function dinero(n) {
 }
 export const numero = (n) => new Intl.NumberFormat("es-MX").format(Number(n) || 0);
 export const pct = (a, b) => (Number(b) > 0 ? Math.round((Number(a) / Number(b)) * 100) : 0);
-export const fecha = (f) => (f ? new Date(f + "T12:00:00").toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "—");
+/* Formato de fecha de la casa: dd/mm/aaaa.
+   Acepta una cadena "aaaa-mm-dd" o un objeto de fecha. Se usa el mediodía
+   para que el huso horario no corra el día. */
+export function fecha(f) {
+  if (!f) return "—";
+  const d = f instanceof Date ? f : new Date(String(f).slice(0, 10) + "T12:00:00");
+  if (Number.isNaN(d.getTime())) return "—";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}/${mm}/${d.getFullYear()}`;
+}
 
 export function valorSegunUnidad(v, unidad) {
   return unidad === "dinero" ? dinero(v) : numero(v);

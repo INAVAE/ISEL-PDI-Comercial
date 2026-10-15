@@ -83,7 +83,8 @@ export function calendario(col, prog, tareasHechas, tareasTotales, hoy = new Dat
 }
 
 const plural = (n, p) => (Math.abs(n) === 1 ? p : p + "s");
-const fmt = (f) => f.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+/* dd/mm/aaaa, el mismo formato que usa el resto de la aplicación */
+const fmt = (f) => `${String(f.getDate()).padStart(2, "0")}/${String(f.getMonth() + 1).padStart(2, "0")}/${f.getFullYear()}`;
 
 export function metricas(col, exp) {
   const prog = programa(col);
