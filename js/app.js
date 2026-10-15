@@ -23,7 +23,9 @@ export const estado = {
   plantillaGlobal: null,
   perfilesCache: [],
   /* Recuerda pestañas y filtros para que no se reinicien al guardar */
-  ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan" },
+  /* semanasAbiertas: qué semanas de la ruta quedaron desplegadas. Vive aquí
+     y no en el DOM porque cada refresco vuelve a pintar la vista. */
+  ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan", semanasAbiertas: null },
 };
 
 /* ------------------------------------------------------------- PERMISOS -- */
@@ -100,23 +102,35 @@ export async function recargarExpediente() {
   estado.m = metricas(estado.col, estado.exp);
 }
 
+/* pintar() reconstruye la página entera, así que el navegador pierde la
+   posición del scroll. Al marcar una tarea eso mandaba al usuario hasta
+   arriba. Se guarda y se repone en el mismo cuadro, antes de pintar nada. */
+function conservandoScroll(fn) {
+  const y = window.scrollY;
+  fn();
+  requestAnimationFrame(() => window.scrollTo(0, y));
+}
+
 export async function refrescar(vista) {
   if (vista) estado.vista = vista;
   await recargarExpediente();
-  pintar();
+  conservandoScroll(pintar);
 }
 
 export async function refrescarTodo(vista) {
   await recargarColaboradores();
   await recargarExpediente();
   if (vista) estado.vista = vista;
-  pintar();
+  conservandoScroll(pintar);
 }
 
 export const ir = (vista) => { estado.vista = vista; pintar(); window.scrollTo(0, 0); };
 
 export async function elegirColaborador(id) {
   estado.colId = id;
+  /* Otro colaborador va en otra semana: lo desplegado del anterior no aplica */
+  estado.ui.semanasAbiertas = null;
+  estado.ui.mesRuta = null;
   await recargarExpediente();
   pintar();
 }

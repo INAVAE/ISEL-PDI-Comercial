@@ -185,6 +185,13 @@ export function vistaRuta(ctx) {
   let mesAbierto = meses.includes(recordado) ? recordado
     : (prog.plan[Math.max(0, (col.semana_actual || 1) - 1)] || {}).mes || meses[0];
 
+  /* Marcar una tarea vuelve a pintar la vista. Si el despliegue viviera solo
+     en el DOM, la semana se cerraría en cada palomita y habría que abrirla
+     de nuevo para marcar la siguiente. */
+  if (!ctx.estado.ui.semanasAbiertas)
+    ctx.estado.ui.semanasAbiertas = new Set([col.semana_actual || 1]);
+  const abiertas = ctx.estado.ui.semanasAbiertas;
+
   const cont = h("div", { class: "vista" });
 
   const pintar = () => {
@@ -224,12 +231,16 @@ export function vistaRuta(ctx) {
           : vencida ? (hechas ? "signal" : "fault")
             : hechas ? "signal" : "off";
       const pendientes = tareas.length - hechas;
-      const abierta = nSemana === (col.semana_actual || 1);
+      const abierta = abiertas.has(nSemana);
 
       const cuerpo = h("div", { class: "semana-cuerpo", style: { display: abierta ? "" : "none" } });
       const art = h("article", { class: "semana" },
         h("header", {
-          onclick: () => { cuerpo.style.display = cuerpo.style.display === "none" ? "" : "none"; },
+          onclick: () => {
+            const cerrada = cuerpo.style.display === "none";
+            cuerpo.style.display = cerrada ? "" : "none";
+            if (cerrada) abiertas.add(nSemana); else abiertas.delete(nSemana);
+          },
         },
           h("div", {}, h("span", { class: "semana-id", text: "Semana " + nSemana }), h("h4", { text: s.titulo })),
           h("div", { class: "semana-meta" },
