@@ -442,18 +442,17 @@ export function dial(valor, etiqueta = "de 100 puntos de graduación") {
 /* Cumplimiento de tareas contra las que ya deberían estar hechas.
    La escala llega a 150 % para que ir por delante también se vea. */
 export function tacometroTareas(hechas, esperadas) {
-  const pctCumplido = esperadas > 0 ? (hechas / esperadas) * 100 : (hechas > 0 ? 150 : 100);
-  const v = Math.max(0, Math.min(150, Math.round(pctCumplido)));
+  const pctCumplido = esperadas > 0 ? (hechas / esperadas) * 100 : 100;
+  const v = Math.max(0, Math.min(100, Math.round(pctCumplido)));
   const color = v >= 95 ? "var(--c-exito)" : v >= 70 ? "var(--c-aviso)" : "var(--c-falla)";
   return tacometro({
-    valor: v, max: 150, aguja: color, progreso: false,
+    valor: v, max: 100, aguja: color, progreso: false,
     centro: v + "%", etiqueta: `${hechas} de ${esperadas} tareas`,
-    marca: 100, marcaTexto: "meta",
     descripcion: `${hechas} de ${esperadas} tareas que ya deberían estar hechas, ${v} por ciento`,
     zonas: [
       { hasta: 70, color: "var(--c-falla)" },
       { hasta: 95, color: "var(--c-aviso)" },
-      { hasta: 150, color: "var(--c-exito)" },
+      { hasta: 100, color: "var(--c-exito)" },
     ],
   });
 }

@@ -392,6 +392,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .semana-id { font-size: 11px; color: var(--graphite); }
 .semana h4 { font-size: 19px; margin: 2px 0 0; }
 .semana-meta { display: flex; align-items: center; gap: 14px; }
+/* Marca de semana vencida con tareas sin completar */
+.semana-rezago {
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+  padding: 2px 8px; border-radius: 10px;
+  color: var(--c-falla); border: 1px solid var(--c-falla); background: transparent;
+}
 .chev { font-size: 14px; color: var(--graphite); }
 .semana-cuerpo { padding: 6px 20px 20px; border-top: 1px solid var(--line); }
 .objetivo { font-size: 14.5px; max-width: 80ch; margin: 14px 0 16px; }

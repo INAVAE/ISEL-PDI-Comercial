@@ -39,9 +39,11 @@ export function vistaPanel(ctx) {
         h("p", { text: semana ? semana.objetivo : "Agrega semanas desde Configurar programa." }),
         h("div", { class: "hero-cifras" },
           cifra(semana ? `${hechasSemana}/${(semana.tasks || []).length}` : "—", "tareas de la semana"),
+          /* El rezago no se reinicia cada semana: lo que quedó pendiente en
+             semanas anteriores se sigue contando aquí. */
+          cifra(m.cal.pendientesVencidas ?? "—", "tareas pendientes acumuladas"),
           cifra(m.visitas.length, "visitas acumuladas"),
-          cifra(dinero(m.pipeline), "pipeline abierto"),
-          cifra(m.cuentas.length, "cuentas mapeadas")),
+          cifra(dinero(m.pipeline), "pipeline abierto")),
         boton("Abrir la semana", () => ctx.ir("ruta")))),
 
     bloqueRitmo(m.cal, ctx),
@@ -99,23 +101,23 @@ function bloqueRitmo(cal, ctx) {
     datoFecha("Término previsto", fecha(cal.fin),
       cal.finCalculado ? "calculado a " + cal.semanas + " semanas" : "definido por el mentor"),
     cal.porArrancar ? null
-      : datoFecha(cal.terminado ? "Plazo vencido" : "Días restantes",
-        cal.terminado ? `hace ${Math.abs(cal.restantes)} días` : String(cal.restantes),
-        `${cal.transcurridos} de ${cal.diasTotales} transcurridos`));
+      : datoFecha(cal.terminado ? "Plazo vencido" : "Días hábiles restantes",
+        cal.terminado ? `hace ${Math.abs(cal.restantes)} días` : String(cal.habilesRestantes),
+        `${cal.transcurridos} de ${cal.diasTotales} días transcurridos`));
 
   if (cal.porArrancar)
     return panel("Ritmo del programa", cal.detalle,
       h("div", { class: "ritmo" }, h("div", { class: "ritmo-veredicto" },
         lampara(cal.estado, cal.veredicto)), dias));
 
-  const brecha = cal.brechaTareas;
-  const lecturaTareas = brecha >= 0
-    ? { estado: "run", texto: `${cal.tareasHechas} tareas completadas, ${brecha === 0 ? "justo las que tocan" : brecha + " por delante"}` }
-    : { estado: brecha <= -5 ? "fault" : "signal",
-        texto: `${cal.tareasHechas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas` };
+  const pend = cal.pendientesVencidas;
+  const lecturaTareas = pend === 0
+    ? { estado: "run", texto: `${cal.hechasVencidas} tareas completadas, justo las que tocan hasta la semana ${cal.exigible}` }
+    : { estado: cal.estadoTareas,
+        texto: `${cal.hechasVencidas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas (semanas 1 a ${cal.exigible})` };
 
   /* El marcador de semana y la evidencia no coinciden */
-  const discrepa = (cal.desviacion < 0 && brecha >= 0) || (cal.desviacion >= 0 && brecha <= -5);
+  const discrepa = (cal.desviacion < 0 && pend === 0) || (cal.desviacion >= 0 && pend >= 5);
 
   return panel("Ritmo del programa", cal.detalle,
     h("div", { class: "ritmo-cols" },
@@ -132,11 +134,14 @@ function bloqueRitmo(cal, ctx) {
           : null),
       h("div", { class: "ritmo-tacometro" },
         h("h5", { text: "Cumplimiento de tareas" }),
-        tacometroTareas(cal.tareasHechas, cal.tareasEsperadas),
+        tacometroTareas(cal.hechasVencidas, cal.tareasEsperadas),
         h("p", { class: "tacometro-pie",
-          text: cal.brechaTareas >= 0
+          text: pend === 0
             ? "Al corriente con lo que toca a la fecha."
-            : `Faltan ${-cal.brechaTareas} tareas para estar al día.` }))));
+            : `Faltan ${pend} tareas acumuladas de las semanas 1 a ${cal.exigible}.` }),
+        cal.adelantadas > 0
+          ? h("p", { class: "tacometro-pie", text: `Además lleva ${cal.adelantadas} tareas adelantadas de semanas posteriores.` })
+          : null)));
 }
 
 const datoFecha = (titulo, valor, nota) =>
@@ -210,7 +215,15 @@ export function vistaRuta(ctx) {
       const nSemana = prog.plan.indexOf(s) + 1;
       const tareas = s.tasks || [];
       const hechas = tareas.filter((t) => m.tareaHecha(s.id, t.id)).length;
-      const estado = tareas.length && hechas === tareas.length ? "run" : hechas ? "signal" : "off";
+      /* Una semana ya vencida con tareas sin hacer tiene que verse vencida.
+         Antes, una semana sin nada marcado quedaba en gris igual que una que
+         todavía no toca, así que el rezago pasaba desapercibido. */
+      const vencida = nSemana <= (m.cal.exigible || 0);
+      const estado = !tareas.length ? "off"
+        : hechas === tareas.length ? "run"
+          : vencida ? (hechas ? "signal" : "fault")
+            : hechas ? "signal" : "off";
+      const pendientes = tareas.length - hechas;
       const abierta = nSemana === (col.semana_actual || 1);
 
       const cuerpo = h("div", { class: "semana-cuerpo", style: { display: abierta ? "" : "none" } });
@@ -219,7 +232,13 @@ export function vistaRuta(ctx) {
           onclick: () => { cuerpo.style.display = cuerpo.style.display === "none" ? "" : "none"; },
         },
           h("div", {}, h("span", { class: "semana-id", text: "Semana " + nSemana }), h("h4", { text: s.titulo })),
-          h("div", { class: "semana-meta" }, lampara(estado, `${hechas} de ${tareas.length}`), h("span", { class: "chev", text: "▾" }))),
+          h("div", { class: "semana-meta" },
+            lampara(estado, `${hechas} de ${tareas.length}`),
+            vencida && pendientes > 0
+              ? h("span", { class: "semana-rezago", title: "Semana vencida con tareas sin completar" },
+                `${pendientes} ${pendientes === 1 ? "pendiente" : "pendientes"}`)
+              : null,
+            h("span", { class: "chev", text: "▾" }))),
         cuerpo);
 
       cuerpo.appendChild(h("p", { class: "objetivo", text: s.objetivo || "" }));
