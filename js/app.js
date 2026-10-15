@@ -2,7 +2,8 @@
    Aplicación principal: sesión, permisos por rol, navegación y carga de datos.
    =========================================================================== */
 
-import { auth, miPerfil, colaboradores, cargarExpediente, plantilla, perfiles } from "./db.js";
+import { auth, miPerfil, colaboradores, cargarExpediente, plantilla, perfiles,
+  enlaceRecuperacion, errorEnlace } from "./db.js";
 import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, iniciarTema, fecha } from "./ui.js";
 import { metricas } from "./metricas.js";
 import { vistaResumen, vistaColaboradores, vistaUsuarios, vistaPlantilla, vistaCuenta } from "./vistas-gestion.js";
@@ -242,8 +243,13 @@ function pantallaSinAcceso() {
         boton("Cerrar sesión", async () => { await auth.salir(); location.reload(); }, "ghost")))));
 }
 
-/* Primer ingreso con una contraseña temporal: hay que cambiarla antes de entrar. */
-function pantallaCambioObligado() {
+/* Dos caminos llegan aquí y hay que entrar eligiendo contraseña:
+   "temporal"     · primer ingreso con la contraseña que dio el administrador
+   "recuperacion" · la persona abrió el enlace del correo de restablecimiento */
+function pantallaCambioObligado(motivo = "temporal") {
+  const intro = motivo === "recuperacion"
+    ? "Abriste el enlace para restablecer tu contraseña. Escribe la nueva para continuar."
+    : "Entraste con una contraseña temporal. Cámbiala por una tuya para continuar.";
   const p1 = h("input", { type: "password", placeholder: "Nueva contraseña", autocomplete: "new-password" });
   const p2 = h("input", { type: "password", placeholder: "Repite la contraseña", autocomplete: "new-password" });
   const error = h("p", { class: "login-error" });
@@ -269,7 +275,7 @@ function pantallaCambioObligado() {
       h("div", { class: "login-marca" }, h("strong", { text: "ISEL" }),
         h("span", { text: "Plan de desarrollo comercial" })),
       h("h2", { class: "sin-acceso-tit", text: "Elige tu contraseña" }),
-      h("p", { class: "login-intro", text: "Entraste con una contraseña temporal. Cámbiala por una tuya para continuar." }),
+      h("p", { class: "login-intro", text: intro }),
       h("form", { class: "login-form", onsubmit: (e) => { e.preventDefault(); btn.click(); } },
         campo("Nueva contraseña", p1), campo("Repite la contraseña", p2), error, btn),
       h("div", { class: "login-pie" }, botonTema()))));
@@ -314,14 +320,17 @@ function pantallaAcceso(mensaje) {
 const traducirError = (msg) =>
   /invalid login/i.test(msg) ? "Correo o contraseña incorrectos."
     : /email not confirmed/i.test(msg) ? "La cuenta todavía no está confirmada."
-      : /fetch|network/i.test(msg) ? "No se pudo contactar al servidor. Revisa la configuración de Supabase."
-        : msg;
+      : /(link|token).*(invalid|expired)|(invalid|expired).*(link|token)|otp_expired/i.test(msg)
+        ? "El enlace del correo ya caducó o se usó antes. Pide otro con «Olvidé mi contraseña»."
+        : /fetch|network/i.test(msg) ? "No se pudo contactar al servidor. Revisa la configuración de Supabase."
+          : msg;
 
 /* ------------------------------------------------------------- ARRANQUE -- */
 
 export async function arrancar() {
   const sesion = await auth.sesion();
-  if (!sesion) { pantallaAcceso(); return; }
+  // Un enlace caducado o ya usado regresa sin sesión y con el motivo en la URL
+  if (!sesion) { pantallaAcceso(errorEnlace ? traducirError(errorEnlace) : undefined); return; }
   vaciar(raiz).appendChild(h("div", { class: "cargando", text: "Cargando el programa…" }));
   try {
     estado.perfil = await miPerfil();
@@ -331,6 +340,9 @@ export async function arrancar() {
       pantallaSinAcceso();
       return;
     }
+    // Llegó por el enlace de restablecimiento: la sesión sirve para elegir
+    // contraseña, no para entrar de largo al programa
+    if (enlaceRecuperacion) { pantallaCambioObligado("recuperacion"); return; }
     // Contraseña temporal pendiente de cambiar
     if (estado.perfil.debe_cambiar) { pantallaCambioObligado(); return; }
 

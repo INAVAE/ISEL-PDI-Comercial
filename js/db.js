@@ -2,6 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { clonarPlantilla } from "./plantilla.js";
 
+/* El correo de restablecimiento regresa con el token en el fragmento de la
+   URL. Hay que leerlo ANTES de crear el cliente: al arrancar, Supabase lo
+   consume y lo borra, y para entonces ya no hay forma de saber que la
+   persona llegó por ese camino y le toca elegir contraseña. */
+const fragmento = location.hash || "";
+export const enlaceRecuperacion = /(?:^|[#&])type=recovery(?:&|$)/.test(fragmento);
+export const errorEnlace = (() => {
+  const m = /(?:^|[#&])error_description=([^&]*)/.exec(fragmento);
+  return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : null;
+})();
+
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* Envoltura mínima: lanza el error de Supabase con un mensaje legible. */
