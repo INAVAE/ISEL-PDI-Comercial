@@ -215,6 +215,8 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .mini { display: flex; flex-direction: column; gap: 2px; }
 .mini span { font-size: 11px; color: var(--graphite); }
 .mini b { font-family: 'IBM Plex Mono', monospace; font-size: 19px; }
+/* Valor que se muestra como dato, no como control editable */
+.mini-dato { font-size: 15px !important; padding: 4px 0; display: block; }
 .mini select { border: 1px solid var(--line); background: var(--panel2); border-radius: 3px; padding: 4px 6px; font: inherit; font-size: 13px; max-width: 200px; }
 
 .lienzo { padding: 22px 28px 60px; max-width: 1460px; }

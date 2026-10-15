@@ -193,9 +193,16 @@ function cabecera(individual) {
       col && h("div", { class: "mini" }, h("span", { text: "Semana" }),
         (() => {
           const total = (col.plan || []).length || 20;
-          const s = h("select", { disabled: !permisos.editaPrograma(col) },
+          const actual = col.semana_actual || 1;
+          /* No es un filtro: marca en qué semana del programa va la persona,
+             y solo la mueve quien puede editar su plan. Para los demás se
+             muestra como dato, no como control, para no invitar a tocarlo. */
+          if (!permisos.editaPrograma(col))
+            return h("b", { class: "mini-dato", title: "Semana en la que va el colaborador" },
+              `${actual} de ${total}`);
+          const s = h("select", { title: "Mueve al colaborador a otra semana del programa" },
             ...Array.from({ length: total }, (_, i) =>
-              h("option", { value: i + 1, selected: (col.semana_actual || 1) === i + 1 }, `${i + 1} de ${total}`)));
+              h("option", { value: i + 1, selected: actual === i + 1 }, `${i + 1} de ${total}`)));
           s.addEventListener("change", async () => {
             await colaboradores.actualizar(col.id, { semana_actual: Number(s.value) });
             aviso("Semana actualizada");
