@@ -39,13 +39,51 @@ export async function miPerfil() {
   if (!s) return null;
   const filas = ok(await sb.from("pdc_profiles").select("*").eq("id", s.user.id).limit(1));
   if (filas && filas.length) return filas[0];
-  // El disparador de alta pudo no haber corrido todavía
-  return { id: s.user.id, email: s.user.email, nombre: s.user.email, rol: "colaborador", activo: true };
+  // Sin fila de perfil, la persona tiene cuenta en ISEL pero nadie le ha dado
+  // acceso a esta herramienta todavía.
+  return { id: s.user.id, email: s.user.email, nombre: s.user.email, rol: null, activo: false, sinAcceso: true };
 }
 
 export const perfiles = {
   listar: async () => ok(await sb.from("pdc_profiles").select("*").order("nombre")),
   actualizar: async (id, campos) => ok(await sb.from("pdc_profiles").update(campos).eq("id", id).select()),
+};
+
+/* ------------------------------------------------- GESTIÓN DE USUARIOS ---
+   Pasa por una función que corre en el servidor de Supabase, porque crear
+   cuentas y cambiar contraseñas exige la llave secreta del proyecto, que
+   nunca puede viajar al navegador. La función verifica por su cuenta que
+   quien pide sea un administrador activo.
+   -------------------------------------------------------------------------- */
+
+async function llamarGestion(accion, datos = {}) {
+  const { data, error } = await sb.functions.invoke("pdc-usuarios", {
+    body: { accion, ...datos },
+  });
+  if (error) {
+    // El cuerpo de la respuesta trae el motivo en español
+    let detalle = "";
+    try { detalle = (await error.context.json()).message; } catch { /* sin cuerpo */ }
+    throw new Error(detalle || traducirFallo(error.message));
+  }
+  if (data && data.message) throw new Error(data.message);
+  return data;
+}
+
+const traducirFallo = (m) =>
+  /Failed to send|fetch/i.test(m || "")
+    ? "No se pudo contactar al servidor de usuarios. Revisa tu conexión."
+    : m || "No se pudo completar la operación.";
+
+export const usuarios = {
+  listar: async () => (await llamarGestion("listar")).usuarios || [],
+  crear: (datos) => llamarGestion("crear", datos),
+  cambiarRol: (user_id, rol) => llamarGestion("rol", { user_id, rol }),
+  activar: (user_id, activo) => llamarGestion("activo", { user_id, activo }),
+  cambiarNombre: (user_id, nombre) => llamarGestion("datos", { user_id, nombre }),
+  restablecer: (user_id, password, pedir_cambio) =>
+    llamarGestion("password", { user_id, password, pedir_cambio }),
+  quitarAcceso: (user_id) => llamarGestion("quitar", { user_id }),
 };
 
 /* -------------------------------------------------------- PLANTILLA ------ */

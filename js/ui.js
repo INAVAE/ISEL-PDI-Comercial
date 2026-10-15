@@ -164,6 +164,82 @@ export function vacio(titulo, texto, accion) {
   return h("div", { class: "vacio" }, h("strong", { text: titulo }), h("p", { text: texto }), accion);
 }
 
+/* ------------------------------------------------------------- FILTROS ---
+   Barra de filtros reutilizable. Cada campo avisa al cambiar y la vista se
+   vuelve a dibujar con el estado nuevo.
+
+   Los campos de texto filtran mientras se escribe, con una pequeña pausa.
+   Como al redibujar se reemplaza el cuadro de texto, se recuerda cuál tenía
+   el foco para devolvérselo con el cursor al final, y así poder seguir
+   escribiendo sin interrupción.
+   -------------------------------------------------------------------------- */
+
+let filtroEnfocado = null;
+
+export function barraFiltros(campos, resumen, alLimpiar) {
+  const barra = h("div", { class: "filtros" });
+  campos.filter(Boolean).forEach((c, i) => {
+    if (c.tipo === "check") {
+      const chk = h("input", { type: "checkbox", checked: !!c.valor });
+      chk.addEventListener("change", () => c.onChange(chk.checked));
+      barra.appendChild(h("label", { class: "check-inline filtro-check" }, chk, c.label));
+    } else if (c.tipo === "texto") {
+      const id = c.id || "texto-" + i;
+      const inp = h("input", { type: "text", value: c.valor ?? "", placeholder: c.placeholder || "" });
+      let temporizador;
+      inp.addEventListener("input", () => {
+        filtroEnfocado = id;
+        clearTimeout(temporizador);
+        temporizador = setTimeout(() => c.onChange(inp.value), 250);
+      });
+      barra.appendChild(h("label", { class: "filtro" }, h("span", { text: c.label }), inp));
+      if (filtroEnfocado === id) {
+        setTimeout(() => {
+          inp.focus();
+          const n = inp.value.length;
+          try { inp.setSelectionRange(n, n); } catch { /* algunos tipos no lo permiten */ }
+        }, 0);
+      }
+    } else {
+      barra.appendChild(h("label", { class: "filtro" }, h("span", { text: c.label }),
+        seleccion(c.valor, c.opciones, (v) => { filtroEnfocado = null; c.onChange(v); })));
+    }
+  });
+  if (alLimpiar) barra.appendChild(boton("Limpiar", () => { filtroEnfocado = null; alLimpiar(); }, "ghost"));
+  if (resumen) barra.appendChild(h("span", { class: "filtros-cuenta", text: resumen }));
+  return barra;
+}
+
+/* Lista de valores distintos de un campo, para llenar un desplegable */
+export function opcionesDe(lista, campo, etiquetaTodos) {
+  const vistos = [...new Set(lista.map((x) => x[campo]).filter((v) => v !== null && v !== undefined && v !== ""))].sort();
+  return [{ id: "", nombre: etiquetaTodos }, ...vistos.map((v) => ({ id: String(v), nombre: String(v) }))];
+}
+
+/* Encabezado de tabla que ordena al hacer clic */
+export function encabezadoOrdenable(texto, clave, orden, alOrdenar, num) {
+  const activo = orden.clave === clave;
+  return h("th", {
+    class: cls("ordenable", num && "num", activo && (orden.asc ? "orden-asc" : "orden-desc")),
+    onclick: () => alOrdenar(activo ? { clave, asc: !orden.asc } : { clave, asc: false }),
+  }, texto);
+}
+
+export function ordenar(lista, orden) {
+  if (!orden || !orden.clave) return lista;
+  const v = (x) => {
+    const r = typeof orden.obtener === "function" ? orden.obtener(x) : x[orden.clave];
+    return r === null || r === undefined ? "" : r;
+  };
+  return [...lista].sort((a, b) => {
+    const x = v(a), y = v(b);
+    const cmp = typeof x === "number" && typeof y === "number"
+      ? x - y
+      : String(x).localeCompare(String(y), "es", { numeric: true });
+    return orden.asc ? cmp : -cmp;
+  });
+}
+
 export function tarjeta(titulo, valor, meta, porcentaje) {
   const color = porcentaje >= 100 ? "var(--run)" : porcentaje >= 60 ? "var(--signal)" : "var(--fault)";
   return h("div", { class: "tarjeta" },
@@ -171,6 +247,14 @@ export function tarjeta(titulo, valor, meta, porcentaje) {
     h("strong", { class: "tarjeta-val", text: String(valor) }),
     barra(porcentaje, 100, color),
     h("span", { class: "tarjeta-meta", text: meta }));
+}
+
+/* Tarjeta para conteos simples: sin barra, porque no hay avance que medir */
+export function tarjetaConteo(titulo, valor, nota) {
+  return h("div", { class: "tarjeta tarjeta-conteo" },
+    h("span", { class: "tarjeta-tit", text: titulo }),
+    h("strong", { class: "tarjeta-val", text: String(valor) }),
+    h("span", { class: "tarjeta-meta", text: nota }));
 }
 
 export function panel(titulo, subtitulo, ...contenido) {

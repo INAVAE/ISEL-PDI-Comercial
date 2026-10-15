@@ -8,6 +8,7 @@ import { TIPOS_VISITA, MADUREZ } from "./plantilla.js";
 import {
   h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
   lampara, barra, dinero, numero, pct, fecha, vacio, barras, barrasH, color, cls, tarjeta, uid,
+  barraFiltros, opcionesDe,
 } from "./ui.js";
 
 /* ============================================================ VISITAS ===== */
@@ -20,45 +21,77 @@ export function vistaVisitas(ctx) {
 
   const progresion = m.prog.planVisitas.map((p) => m.visitas.filter((v) => Number(v.mes) === p.mes));
 
-  return h("div", { class: "vista" },
-    h("div", { class: "grid-4" },
-      tarjeta("Visitas acumuladas", m.visitas.length, "Meta de graduación: " + metaDe(m, "visitas"), pct(m.visitas.length, metaDe(m, "visitas"))),
-      tarjeta("Lideradas solo", m.visitasSolo, "Meta de graduación: " + metaDe(m, "visitas_solo"), pct(m.visitasSolo, metaDe(m, "visitas_solo"))),
-      tarjeta("A cuentas nuevas", m.visitasNuevas, `${pct(m.visitasNuevas, m.visitas.length || 1)}% del total`, pct(m.visitasNuevas, (m.visitas.length || 1) * 0.3)),
-      tarjeta("Visitas validadas", m.visitas.filter((v) => v.validada).length, "Revisadas por el mentor", pct(m.visitas.filter((v) => v.validada).length, m.visitas.length || 1))),
+  const ui = ctx.estado.ui;
+  if (!ui.visitas) ui.visitas = { mes: "", tipo: "", nuevas: false, porValidar: false };
+  const f = ui.visitas;
+  const cont = h("div", { class: "vista" });
 
-    panel("Progresión de campo", "De observar al mentor a liderar solo.",
+  const pintar = () => {
+    cont.replaceChildren();
+
+    const filtradas = lista.filter((v) =>
+      (!f.mes || String(v.mes) === f.mes) &&
+      (!f.tipo || v.tipo === f.tipo) &&
+      (!f.nuevas || v.cuenta_nueva) &&
+      (!f.porValidar || !v.validada));
+
+    cont.appendChild(h("div", { class: "grid-4" },
+      tarjeta("Visitas acumuladas", m.visitas.length, "Meta de graduaci\u00f3n: " + metaDe(m, "visitas"), pct(m.visitas.length, metaDe(m, "visitas"))),
+      tarjeta("Lideradas solo", m.visitasSolo, "Meta de graduaci\u00f3n: " + metaDe(m, "visitas_solo"), pct(m.visitasSolo, metaDe(m, "visitas_solo"))),
+      tarjeta("A cuentas nuevas", m.visitasNuevas, `${pct(m.visitasNuevas, m.visitas.length || 1)}% del total`, pct(m.visitasNuevas, (m.visitas.length || 1) * 0.3)),
+      tarjeta("Visitas validadas", m.visitas.filter((v) => v.validada).length, "Revisadas por el mentor", pct(m.visitas.filter((v) => v.validada).length, m.visitas.length || 1))));
+
+    cont.appendChild(panel("Progresi\u00f3n de campo", "De observar al mentor a liderar solo.",
       barras(m.prog.planVisitas.map((p) => "Mes " + p.mes),
         TIPOS_VISITA.map((t, i) => ({
           nombre: t.nombre, color: ["var(--c-neutro)", "var(--c-acero2)", "var(--c-acero4)", "var(--c-exito)"][i],
           valores: progresion.map((r) => r.filter((v) => v.tipo === t.id).length),
-        })), { apilado: true })),
+        })), { apilado: true })));
 
-    panel(null, null,
+    cont.appendChild(panel(null, null,
       h("div", { class: "head-flex" },
-        h("div", {}, h("h3", { text: "Bitácora de visitas" }),
-          h("p", { class: "sub", text: "Una visita sin formato levantado no cuenta para la graduación." })),
+        h("div", {}, h("h3", { text: "Bit\u00e1cora de visitas" }),
+          h("p", { class: "sub", text: "Una visita sin formato levantado no cuenta para la graduaci\u00f3n." })),
         puede ? boton("Registrar visita", () => formVisita(ctx, null)) : null),
-      lista.length
-        ? tabla(["Fecha", "Empresa", "Tipo", "Pains detectados", "Próxima acción", { t: "Calidad", num: true }, "Estado", ""],
-          lista.map((v) => h("tr", {},
-            h("td", { class: "mono" }, v.fecha ? fecha(v.fecha) : "—", h("br"), h("span", { class: "gris", text: "Mes " + v.mes })),
+      lista.length ? barraFiltros([
+        { label: "Mes", valor: f.mes, opciones: [{ id: "", nombre: "Todos" },
+          ...[1, 2, 3, 4, 5].map((n) => ({ id: String(n), nombre: "Mes " + n }))],
+          onChange: (v) => { f.mes = v; pintar(); } },
+        { label: "Participaci\u00f3n", valor: f.tipo,
+          opciones: [{ id: "", nombre: "Todas" }, ...TIPOS_VISITA],
+          onChange: (v) => { f.tipo = v; pintar(); } },
+        { tipo: "check", label: "Solo cuentas nuevas", valor: f.nuevas, onChange: (v) => { f.nuevas = v; pintar(); } },
+        { tipo: "check", label: "Solo por validar", valor: f.porValidar, onChange: (v) => { f.porValidar = v; pintar(); } },
+      ], `${filtradas.length} de ${lista.length}`,
+        () => { f.mes = ""; f.tipo = ""; f.nuevas = false; f.porValidar = false; pintar(); }) : null,
+      filtradas.length
+        ? tabla(["Fecha", "Empresa", "Tipo", "Pains detectados", "Pr\u00f3xima acci\u00f3n", { t: "Calidad", num: true }, "Estado", ""],
+          filtradas.map((v) => h("tr", {},
+            h("td", { class: "mono" }, v.fecha ? fecha(v.fecha) : "\u2014", h("br"), h("span", { class: "gris", text: "Mes " + v.mes })),
             h("td", {}, h("b", { text: v.empresa || "Sin nombre" }), h("br"),
-              h("span", { class: "gris", text: (v.planta || "") + (v.cuenta_nueva ? " · cuenta nueva" : "") })),
+              h("span", { class: "gris", text: (v.planta || "") + (v.cuenta_nueva ? " \u00b7 cuenta nueva" : "") })),
             h("td", { text: (TIPOS_VISITA.find((t) => t.id === v.tipo) || {}).nombre || v.tipo }),
             h("td", { class: "gris", text: recortar(v.pains) }),
             h("td", {}, v.prox_accion || h("span", { class: "rojo", text: "Sin definir" }),
               h("br"), h("span", { class: "gris mono", text: v.fecha_prox ? fecha(v.fecha_prox) : "" })),
-            h("td", { class: "num", text: v.calidad ? String(v.calidad) : "—" }),
+            h("td", { class: "num", text: v.calidad ? String(v.calidad) : "\u2014" }),
             h("td", {}, v.validada ? lampara("run", "Validada") : lampara("off", "Por revisar")),
             h("td", { class: "acciones" },
               boton("Abrir", () => formVisita(ctx, v), "ghost"),
-              puede ? boton("Borrar", () => confirmar("¿Borrar esta visita?", async () => {
+              puede ? boton("Borrar", () => confirmar("\u00bfBorrar esta visita?", async () => {
                 await dbVisitas.borrar(v.id); aviso("Visita borrada"); ctx.refrescar();
               }), "ghost") : null))), { scroll: true })
-        : vacio("Todavía no hay visitas registradas",
-          "Cada visita se documenta el mismo día con hallazgos, pains, impacto y siguiente paso.",
-          puede ? boton("Registrar la primera", () => formVisita(ctx, null)) : null)));
+        : vacio(lista.length ? "Ninguna visita coincide" : "Todav\u00eda no hay visitas registradas",
+          lista.length
+            ? "Prueba con otro mes o quita los filtros."
+            : "Cada visita se documenta el mismo d\u00eda con hallazgos, pains, impacto y siguiente paso.",
+          lista.length
+            ? boton("Limpiar filtros", () => { f.mes = ""; f.tipo = ""; f.nuevas = false; f.porValidar = false; pintar(); }, "ghost")
+            : (puede ? boton("Registrar la primera", () => formVisita(ctx, null)) : null))));
+  };
+
+  pintar();
+  return cont;
 }
 
 function formVisita(ctx, v) {
@@ -122,51 +155,82 @@ export function vistaPipeline(ctx) {
   const etapas = m.prog.etapas;
   const lista = exp.opps || [];
 
-  return h("div", { class: "vista" },
-    panel("Criterios de avance de etapa",
+  const ui = ctx.estado.ui;
+  if (!ui.pipeline) ui.pipeline = { etapa: "", origen: "", sinAccion: false };
+  const f = ui.pipeline;
+  const cont = h("div", { class: "vista" });
+
+  const pintar = () => {
+    cont.replaceChildren();
+
+    const filtradas = lista.filter((o) =>
+      (!f.etapa || o.etapa === f.etapa) &&
+      (!f.origen || o.origen === f.origen) &&
+      (!f.sinAccion || (!o.prox_accion && o.etapa !== "ganada" && o.etapa !== "perdida")));
+
+    cont.appendChild(panel("Criterios de avance de etapa",
       "Una oportunidad solo avanza cuando cumple todos los criterios de su etapa.",
       h("div", { class: "etapas" }, ...etapas.map((e) =>
         h("div", { class: "etapa-card" },
           h("header", {}, h("b", { text: e.nombre }), h("span", { class: "mono", text: e.prob + "%" })),
           h("ul", {}, ...(e.criterios || []).map((c) => h("li", { text: c }))),
-          h("footer", { text: `${lista.filter((o) => o.etapa === e.id).length} oportunidades · ${dinero(lista.filter((o) => o.etapa === e.id).reduce((a, o) => a + (Number(o.valor) || 0), 0))}` }))))),
+          h("footer", { text: `${lista.filter((o) => o.etapa === e.id).length} oportunidades \u00b7 ${dinero(lista.filter((o) => o.etapa === e.id).reduce((a, o) => a + (Number(o.valor) || 0), 0))}` }))))));
 
-    h("div", { class: "grid-4" },
+    cont.appendChild(h("div", { class: "grid-4" },
       tarjeta("Pipeline abierto", dinero(m.pipeline), "Suma de oportunidades vivas", pct(m.pipeline, metaDe(m, "pipeline_cal") * 1.5 || 1)),
       tarjeta("Pipeline ponderado", dinero(m.ponderado), "Valor por probabilidad", pct(m.ponderado, metaDe(m, "pipeline_cal") || 1)),
-      tarjeta("Creadas por el vendedor", `${m.creadas} de ${lista.length}`, "Meta: 60 % o más creadas, no reactivas", pct(m.creadas, Math.max(1, lista.length * 0.6))),
-      tarjeta("Tasa de cierre", m.tasaCierre + "%", `${m.ganadas.length} oportunidades ganadas`, m.tasaCierre)),
+      tarjeta("Creadas por el vendedor", `${m.creadas} de ${lista.length}`, "Meta: 60 % o m\u00e1s creadas, no reactivas", pct(m.creadas, Math.max(1, lista.length * 0.6))),
+      tarjeta("Tasa de cierre", m.tasaCierre + "%", `${m.ganadas.length} oportunidades ganadas`, m.tasaCierre)));
 
-    panel(null, null,
+    cont.appendChild(panel(null, null,
       h("div", { class: "head-flex" },
         h("div", {}, h("h3", { text: "Oportunidades" }),
-          h("p", { class: "sub", text: "Cada oportunidad necesita decisor, presupuesto, timing y próxima acción con fecha." })),
+          h("p", { class: "sub", text: "Cada oportunidad necesita decisor, presupuesto, timing y pr\u00f3xima acci\u00f3n con fecha." })),
         puede ? boton("Nueva oportunidad", () => formOpp(ctx, null)) : null),
-      lista.length
-        ? tabla(["Oportunidad", "Cuenta", "Etapa", { t: "Valor", num: true }, { t: "Prob.", num: true }, "Cierre", "Decisor", "Próxima acción", ""],
-          lista.map((o) => {
+      lista.length ? barraFiltros([
+        { label: "Etapa", valor: f.etapa,
+          opciones: [{ id: "", nombre: "Todas" }, ...etapas.map((e) => ({ id: e.id, nombre: e.nombre }))],
+          onChange: (v) => { f.etapa = v; pintar(); } },
+        { label: "Origen", valor: f.origen, opciones: [
+          { id: "", nombre: "Todos" }, { id: "creada", nombre: "Creada por el vendedor" },
+          { id: "reactiva", nombre: "Solicitud del cliente" },
+        ], onChange: (v) => { f.origen = v; pintar(); } },
+        { tipo: "check", label: "Solo sin pr\u00f3xima acci\u00f3n", valor: f.sinAccion, onChange: (v) => { f.sinAccion = v; pintar(); } },
+      ], `${filtradas.length} de ${lista.length} \u00b7 ${dinero(filtradas.reduce((a, o) => a + (Number(o.valor) || 0), 0))}`,
+        () => { f.etapa = ""; f.origen = ""; f.sinAccion = false; pintar(); }) : null,
+      filtradas.length
+        ? tabla(["Oportunidad", "Cuenta", "Etapa", { t: "Valor", num: true }, { t: "Prob.", num: true }, "Cierre", "Decisor", "Pr\u00f3xima acci\u00f3n", ""],
+          filtradas.map((o) => {
             const et = etapas.find((e) => e.id === o.etapa) || { nombre: o.etapa, criterios: [] };
             const listo = (et.criterios || []).length && (et.criterios || []).every((_, i) => (o.checks || {})[et.id + i]);
             return h("tr", {},
-              h("td", {}, h("b", { text: o.nombre || "Sin título" }), h("br"), h("span", { class: "gris", text: o.aplicacion || "" })),
-              h("td", { text: o.cuenta || "—" }),
+              h("td", {}, h("b", { text: o.nombre || "Sin t\u00edtulo" }), h("br"), h("span", { class: "gris", text: o.aplicacion || "" })),
+              h("td", { text: o.cuenta || "\u2014" }),
               h("td", {}, h("span", { class: cls("badge", "etapa-" + o.etapa), text: et.nombre }),
                 listo && o.etapa !== "ganada" && o.etapa !== "perdida" ? h("div", { class: "verde", text: "Listo para avanzar" }) : null),
               h("td", { class: "num mono", text: dinero(o.valor) }),
               h("td", { class: "num mono", text: (o.probabilidad ?? 0) + "%" }),
-              h("td", { class: "mono", text: o.cierre ? fecha(o.cierre) : "—" }),
+              h("td", { class: "mono", text: o.cierre ? fecha(o.cierre) : "\u2014" }),
               h("td", {}, o.decisor || h("span", { class: "rojo", text: "Falta" })),
               h("td", {}, o.prox_accion || h("span", { class: "rojo", text: "Falta" }),
                 h("br"), h("span", { class: "gris mono", text: o.fecha_prox ? fecha(o.fecha_prox) : "" })),
               h("td", { class: "acciones" },
                 boton("Abrir", () => formOpp(ctx, o), "ghost"),
-                puede ? boton("Borrar", () => confirmar("¿Borrar esta oportunidad?", async () => {
+                puede ? boton("Borrar", () => confirmar("\u00bfBorrar esta oportunidad?", async () => {
                   await dbOpps.borrar(o.id); aviso("Oportunidad borrada"); ctx.refrescar();
                 }), "ghost") : null));
           }), { scroll: true })
-        : vacio("El pipeline está vacío",
-          "Registra las oportunidades reales detectadas en campo, incluso las pequeñas.",
-          puede ? boton("Cargar la primera", () => formOpp(ctx, null)) : null)));
+        : vacio(lista.length ? "Ninguna oportunidad coincide" : "El pipeline est\u00e1 vac\u00edo",
+          lista.length
+            ? "Prueba con otra etapa o quita los filtros."
+            : "Registra las oportunidades reales detectadas en campo, incluso las peque\u00f1as.",
+          lista.length
+            ? boton("Limpiar filtros", () => { f.etapa = ""; f.origen = ""; f.sinAccion = false; pintar(); }, "ghost")
+            : (puede ? boton("Cargar la primera", () => formOpp(ctx, null)) : null))));
+  };
+
+  pintar();
+  return cont;
 }
 
 function formOpp(ctx, o) {
@@ -234,36 +298,65 @@ export function vistaCuentas(ctx) {
   const puede = ctx.permisos.captura(col);
   const lista = exp.cuentas || [];
 
-  return h("div", { class: "vista" },
-    panel("Escalera de madurez de la cuenta",
-      "El objetivo es mover cuentas hacia la derecha, no solo vender más veces.",
+  const ui = ctx.estado.ui;
+  if (!ui.cuentas) ui.cuentas = { madurez: "", sector: "", soloPendientes: false };
+  const f = ui.cuentas;
+  const cont = h("div", { class: "vista" });
+
+  const pintar = () => {
+    cont.replaceChildren();
+
+    const filtradas = lista.filter((c) =>
+      (!f.madurez || String(c.madurez) === f.madurez) &&
+      (!f.sector || c.sector === f.sector) &&
+      (!f.soloPendientes || !c.aprobado));
+
+    cont.appendChild(panel("Escalera de madurez de la cuenta",
+      "El objetivo es mover cuentas hacia la derecha, no solo vender m\u00e1s veces.",
       h("div", { class: "escalera" }, ...MADUREZ.map((x) =>
         h("div", { class: "peldano" },
           h("b", { text: String(x.n) }), h("strong", { text: x.nombre }), h("p", { text: x.desc }),
-          h("em", { text: `${lista.filter((c) => c.madurez === x.n).length} cuentas` }))))),
+          h("em", { text: `${lista.filter((c) => c.madurez === x.n).length} cuentas` }))))));
 
-    panel(null, null,
+    cont.appendChild(panel(null, null,
       h("div", { class: "head-flex" },
         h("div", {}, h("h3", { text: "Account Plans" }),
-          h("p", { class: "sub", text: "Una cuenta cuenta para la graduación cuando su plan está aprobado por el mentor." })),
+          h("p", { class: "sub", text: "Una cuenta cuenta para la graduaci\u00f3n cuando su plan est\u00e1 aprobado por el mentor." })),
         puede ? boton("Nueva cuenta", () => formCuenta(ctx, null)) : null),
-      lista.length
+      lista.length ? barraFiltros([
+        { label: "Madurez", valor: f.madurez,
+          opciones: [{ id: "", nombre: "Todas" }, ...MADUREZ.map((x) => ({ id: String(x.n), nombre: `${x.n} \u00b7 ${x.nombre}` }))],
+          onChange: (v) => { f.madurez = v; pintar(); } },
+        { label: "Sector", valor: f.sector, opciones: opcionesDe(lista, "sector", "Todos"),
+          onChange: (v) => { f.sector = v; pintar(); } },
+        { tipo: "check", label: "Solo planes sin aprobar", valor: f.soloPendientes, onChange: (v) => { f.soloPendientes = v; pintar(); } },
+      ], `${filtradas.length} de ${lista.length} \u00b7 potencial ${dinero(filtradas.reduce((a, c) => a + (Number(c.potencial) || 0), 0))}`,
+        () => { f.madurez = ""; f.sector = ""; f.soloPendientes = false; pintar(); }) : null,
+      filtradas.length
         ? tabla(["Empresa", "Sector", { t: "Stakeholders", num: true }, "Madurez", { t: "Potencial anual", num: true }, "Estado", ""],
-          lista.map((c) => h("tr", {},
+          filtradas.map((c) => h("tr", {},
             h("td", {}, h("b", { text: c.empresa || "Sin nombre" }), h("br"), h("span", { class: "gris", text: c.plantas || "" })),
-            h("td", { text: c.sector || "—" }),
+            h("td", { text: c.sector || "\u2014" }),
             h("td", { class: "num", text: String((c.stakeholders || []).length) }),
-            h("td", {}, h("span", { class: "badge", text: (MADUREZ.find((x) => x.n === c.madurez) || {}).nombre || "—" })),
+            h("td", {}, h("span", { class: "badge", text: (MADUREZ.find((x) => x.n === c.madurez) || {}).nombre || "\u2014" })),
             h("td", { class: "num mono", text: dinero(c.potencial) }),
-            h("td", {}, c.aprobado ? lampara("run", "Plan aprobado") : lampara("off", "En construcción")),
+            h("td", {}, c.aprobado ? lampara("run", "Plan aprobado") : lampara("off", "En construcci\u00f3n")),
             h("td", { class: "acciones" },
               boton("Abrir", () => formCuenta(ctx, c), "ghost"),
-              puede ? boton("Borrar", () => confirmar("¿Borrar esta cuenta?", async () => {
+              puede ? boton("Borrar", () => confirmar("\u00bfBorrar esta cuenta?", async () => {
                 await dbCuentas.borrar(c.id); aviso("Cuenta borrada"); ctx.refrescar();
               }), "ghost") : null))), { scroll: true })
-        : vacio("Sin cuentas mapeadas",
-          "Empieza por las cuentas A del territorio: procesos, tecnología instalada, contactos y huecos de oportunidad.",
-          puede ? boton("Mapear la primera cuenta", () => formCuenta(ctx, null)) : null)));
+        : vacio(lista.length ? "Ninguna cuenta coincide" : "Sin cuentas mapeadas",
+          lista.length
+            ? "Prueba con otro nivel de madurez o quita los filtros."
+            : "Empieza por las cuentas A del territorio: procesos, tecnolog\u00eda instalada, contactos y huecos de oportunidad.",
+          lista.length
+            ? boton("Limpiar filtros", () => { f.madurez = ""; f.sector = ""; f.soloPendientes = false; pintar(); }, "ghost")
+            : (puede ? boton("Mapear la primera cuenta", () => formCuenta(ctx, null)) : null))));
+  };
+
+  pintar();
+  return cont;
 }
 
 function formCuenta(ctx, c) {

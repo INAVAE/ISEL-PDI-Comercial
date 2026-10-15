@@ -281,6 +281,26 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .acciones-fila { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 14px; }
 
+/* Barra de filtros */
+.filtros { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px;
+  padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.filtro { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--graphite); }
+.filtro span { white-space: nowrap; }
+.filtro input, .filtro select { min-width: 150px; }
+.filtro-check { font-size: 12.5px; padding-bottom: 7px; }
+.filtros-cuenta { margin-left: auto; font-size: 12px; color: var(--graphite);
+  font-family: 'IBM Plex Mono', monospace; padding-bottom: 8px; }
+.fila-apagada { opacity: .55; }
+.tarjeta-conteo { justify-content: flex-start; gap: 3px; }
+.tabla td > select { min-width: 190px; }
+.aviso-mini { font-size: 11px; color: var(--signal); margin-top: 2px; }
+.sin-acceso-tit { font-size: 22px; margin: 0 0 6px; }
+th.ordenable { cursor: pointer; user-select: none; }
+th.ordenable:hover { color: var(--steel); }
+th.ordenable::after { content: ' \\2195'; opacity: .35; }
+th.orden-asc::after { content: ' \\2191'; opacity: 1; color: var(--signal); }
+th.orden-desc::after { content: ' \\2193'; opacity: 1; color: var(--signal); }
+
 /* Interruptor de tema */
 .btn-tema { display: flex; align-items: center; gap: 8px; width: 100%; background: transparent;
   border: 1px solid var(--rail-borde); border-radius: 4px; padding: 7px 12px; cursor: pointer;

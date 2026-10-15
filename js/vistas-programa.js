@@ -9,6 +9,7 @@ import { clave } from "./metricas.js";
 import {
   h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
   lampara, barra, dinero, numero, pct, vacio, radar, barras, barrasH, lineas, dial, color, cls, tarjeta, uid,
+  barraFiltros,
 } from "./ui.js";
 
 /* ============================================================== PANEL ===== */
@@ -209,6 +210,9 @@ export function vistaCompetencias(ctx) {
   const prog = m.prog;
   const puedeEvaluar = ctx.permisos.evalua(col);
   let corte = ctx.estado.ui.corteCompetencias || m.ultimoCorte;
+  const ui = ctx.estado.ui;
+  if (!ui.comp) ui.comp = { grupo: "", soloCriticas: false, soloBajas: false, sinEvaluar: false };
+  const fc = ui.comp;
 
   const cont = h("div", { class: "vista" });
 
@@ -242,7 +246,25 @@ export function vistaCompetencias(ctx) {
         h("b", { text: m.scoreCorte(corte) ? m.scoreCorte(corte).toFixed(2) : "—" }),
         h("em", { text: `mínimo para graduar: ${m.umbrales.scoreApto.toFixed(2)}` })));
 
-    const filas = prog.competencias.map((c) => {
+    const visibles = prog.competencias.filter((c) => {
+      const v = m.nivel(c.id, corte);
+      return (!fc.grupo || c.grupo === fc.grupo)
+        && (!fc.soloCriticas || c.imp === "Cr\u00edtica")
+        && (!fc.soloBajas || (v > 0 && v < c.req))
+        && (!fc.sinEvaluar || v === 0);
+    });
+
+    const filtros = barraFiltros([
+      { label: "Grupo", valor: fc.grupo,
+        opciones: [{ id: "", nombre: "Todos los grupos" }, ...prog.grupos.map((g) => ({ id: g.id, nombre: g.nombre }))],
+        onChange: (v) => { fc.grupo = v; pintar(); } },
+      { tipo: "check", label: "Solo cr\u00edticas", valor: fc.soloCriticas, onChange: (v) => { fc.soloCriticas = v; pintar(); } },
+      { tipo: "check", label: "Solo por debajo del requerido", valor: fc.soloBajas, onChange: (v) => { fc.soloBajas = v; pintar(); } },
+      { tipo: "check", label: "Solo sin evaluar", valor: fc.sinEvaluar, onChange: (v) => { fc.sinEvaluar = v; pintar(); } },
+    ], `${visibles.length} de ${prog.competencias.length}`,
+      () => { fc.grupo = ""; fc.soloCriticas = false; fc.soloBajas = false; fc.sinEvaluar = false; pintar(); });
+
+    const filas = visibles.map((c) => {
       const v = m.nivel(c.id, corte);
       const escala = h("div", { class: "escala" }, ...[1, 2, 3, 4, 5].map((n) =>
         h("button", {
@@ -265,9 +287,15 @@ export function vistaCompetencias(ctx) {
         h("td", {}, escala));
     });
 
-    cont.appendChild(panel(null, null, encabezado, chips,
-      tabla(["Competencia", "Grupo", { t: "Inicial esperado", num: true }, { t: "Requerido", num: true }, "Importancia", "Cómo se evalúa", "Calificación"],
-        filas, { scroll: true })));
+    cont.appendChild(panel(null, null, encabezado, chips, filtros,
+      filas.length
+        ? tabla(["Competencia", "Grupo", { t: "Inicial esperado", num: true }, { t: "Requerido", num: true }, "Importancia", "Cómo se evalúa", "Calificación"],
+          filas, { scroll: true })
+        : vacio("Ninguna competencia coincide",
+          "Quita algún filtro para volver a ver la lista completa.",
+          boton("Limpiar filtros", () => {
+            fc.grupo = ""; fc.soloCriticas = false; fc.soloBajas = false; fc.sinEvaluar = false; pintar();
+          }, "ghost"))));
 
     if (ctx.permisos.editaPrograma(col))
       cont.appendChild(h("div", { class: "acciones-fila" },

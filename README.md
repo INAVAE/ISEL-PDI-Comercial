@@ -53,41 +53,62 @@ regresa al sitio correcto.
 
 ---
 
-## 2. Los tres roles
+## 2. Los cuatro roles
 
-| | Administrador | Mentor | Colaborador en desarrollo |
-|---|---|---|---|
-| Ver el avance de todos | Sí | Sí | No, solo el propio |
-| Registrar y archivar colaboradores | Sí | Sí | No |
-| Borrar un colaborador | Sí | No | No |
-| Editar el plan, objetivos y metas | De cualquiera | De sus asignados | No |
-| Calificar competencias | Sí | De sus asignados | No, solo consulta |
-| Validar resultados y visitas | Sí | De sus asignados | No |
-| Registrar visitas, oportunidades y cuentas | Sí | Sí | Sí, las suyas |
-| Marcar tareas del plan | Sí | Sí | Sí, las suyas |
-| Sesiones de coaching y dictamen | Sí | De sus asignados | Solo lectura |
-| Asignar roles y usuarios | Sí | No | No |
-| Plantilla base del programa | Sí | No | No |
+| | Administrador | Mentor | Colaborador | Solo lectura |
+|---|---|---|---|---|
+| Ver el avance de todos | Sí | Sí | No, solo el propio | Sí |
+| Usar los filtros | Sí | Sí | Sí | Sí |
+| Registrar y archivar colaboradores | Sí | Sí | No | No |
+| Borrar un colaborador | Sí | No | No | No |
+| Editar el plan, objetivos y metas | De cualquiera | De sus asignados | No | No |
+| Calificar competencias | Sí | De sus asignados | No, solo consulta | No |
+| Validar resultados y visitas | Sí | De sus asignados | No | No |
+| Registrar visitas, oportunidades y cuentas | Sí | Sí | Sí, las suyas | No |
+| Marcar tareas del plan | Sí | Sí | Sí, las suyas | No |
+| Sesiones de coaching y dictamen | Sí | De sus asignados | Solo lectura | Solo lectura |
+| Crear usuarios y asignar roles | Sí | No | No | No |
+| Plantilla base del programa | Sí | No | No | No |
 
 Estas reglas no viven solo en la interfaz: están escritas como políticas de acceso en la base
 de datos. Aunque alguien manipulara el navegador, el servidor rechaza la operación.
 
 ### Dar de alta a una persona
 
-1. **Supabase → Authentication → Users → Add user**: correo y contraseña.
-2. En la aplicación, **Usuarios y roles**: aparece con el rol de colaborador; cámbialo si es
-   mentor o administrador.
-3. Si es alguien a desarrollar, ve a **Colaboradores → Registrar colaborador**, llena su ficha
-   y, en *Cuenta de acceso del colaborador*, vincúlala con el usuario que creaste. Ese vínculo
-   es lo que le permite entrar y ver únicamente su propio expediente.
+Todo se hace desde **Usuarios y roles → Agregar usuario**. Escribes el correo, el nombre y el
+rol; la aplicación propone una contraseña temporal legible, de dos palabras y un número, para
+que la puedas dictar por teléfono. Al entrar por primera vez se le pide cambiarla.
+
+Si el correo ya tiene cuenta en ISEL por otra herramienta, como la Junta Mensual, se reutiliza
+esa misma cuenta: la persona conserva su contraseña y simplemente gana acceso a esta
+herramienta. Una cuenta por persona, un acceso por herramienta.
+
+Para un colaborador en desarrollo falta un paso más: ve a **Colaboradores → Registrar
+colaborador**, llena su ficha y, en *Cuenta de acceso del colaborador*, vincúlala con el
+usuario que creaste. Ese vínculo es lo que le permite ver su propio expediente.
+
+Las cuentas nunca se borran desde aquí. *Quitar acceso* solo retira el acceso a este plan de
+desarrollo; la cuenta sigue existiendo para las demás herramientas de ISEL. Para suspender a
+alguien temporalmente, basta con desactivarlo.
+
+### Por qué la gestión de usuarios pasa por el servidor
+
+Crear cuentas y cambiar contraseñas exige la llave secreta del proyecto, y esa llave jamás
+puede viajar al navegador: quien abriera el código fuente de la página la vería. Por eso esa
+parte corre en una función alojada en Supabase (`supabase/functions/pdc-usuarios`), que
+guarda la llave y verifica por su cuenta que quien pide sea un administrador activo.
+
+La función protege dos cosas por diseño: nadie puede quitarse a sí mismo el acceso o el rol de
+administrador, y el sistema nunca se queda sin ningún administrador activo.
 
 ---
 
 ## 3. Qué hay en cada sección
 
-**Resumen general** (administrador y mentor). Comparativo de todos los participantes:
-scorecard, avance del plan, visitas, pipeline, ventas y cuentas, con gráficas para ver quién
-va adelante y quién necesita atención esta semana.
+**Resumen general** (todos menos el colaborador). Comparativo de los participantes: scorecard,
+avance del plan, visitas, pipeline, ventas y cuentas, con gráficas para ver quién va adelante y
+quién necesita atención. Se filtra por sucursal, mentor y estado, y se ordena dando clic en
+cualquier encabezado.
 
 **Colaboradores**. Registro con nombre, edad, puesto actual, puesto deseado, correo, teléfono,
 sucursal, fecha de inicio y mentor asignado. Se pueden archivar, reactivar, marcar como
@@ -126,6 +147,19 @@ competencias y sus pesos, indicadores y metas, criterios de graduación y sus um
 campo, etapas del embudo, componentes del examen y riesgos.
 
 **Plantilla base** (administrador). La versión que se copia a cada colaborador nuevo.
+
+**Usuarios y roles** (administrador). Alta de usuarios, cambio de rol, suspensión, restablecer
+contraseña y retiro de acceso, con el último ingreso de cada quien.
+
+### Filtros
+
+Casi todas las listas se filtran, y los filtros están disponibles para todos los roles. El
+resumen general filtra por sucursal, mentor y estado y ordena por cualquier columna. Los
+colaboradores se buscan por nombre, correo o puesto. Las visitas se filtran por mes, tipo de
+participación, cuentas nuevas y pendientes de validar. El pipeline, por etapa, origen y las que
+no tienen próxima acción. Las cuentas, por madurez, sector y planes sin aprobar. Las
+competencias, por grupo, y con interruptores para ver solo las críticas, solo las que están por
+debajo del nivel requerido o solo las que faltan por evaluar.
 
 ---
 
@@ -173,6 +207,7 @@ js/app.js             Sesión, permisos y navegación
 js/vistas-gestion.js  Resumen, colaboradores, usuarios, plantilla y cuenta
 js/vistas-programa.js Panel, ruta, competencias, KPIs, graduación, riesgos y configuración
 js/vistas-actividad.js Visitas, pipeline, cuentas y coaching
+supabase/functions/pdc-usuarios/index.ts   Gestión de usuarios (corre en el servidor)
 ```
 
 ---
@@ -192,6 +227,10 @@ su plan tal como estaba.
 **¿Cómo respaldo la información?**
 Supabase respalda automáticamente. Además, desde **Plantilla base** puedes descargar la
 configuración del programa en un archivo.
+
+**¿Puedo cambiar el tema?**
+Sí. El botón está al pie del menú lateral. La primera vez toma la preferencia de tu sistema
+operativo; en cuanto eliges uno, se recuerda en tu navegador. Cada persona tiene el suyo.
 
 **¿Funciona en celular?**
 Sí. El menú se convierte en una barra horizontal y las tablas se desplazan. Para capturar

@@ -28,42 +28,47 @@ export const estado = {
 /* ------------------------------------------------------------- PERMISOS -- */
 
 export const permisos = {
-  get rol() { return estado.perfil ? estado.perfil.rol : "colaborador"; },
+  get rol() { return estado.perfil ? estado.perfil.rol : null; },
   get esAdmin() { return permisos.rol === "admin"; },
   get esMentor() { return permisos.rol === "mentor" || permisos.esAdmin; },
   get esColaborador() { return permisos.rol === "colaborador"; },
+  get esLector() { return permisos.rol === "lector"; },
   /* El mentor solo edita el plan de los colaboradores que tiene asignados */
   editaPrograma(col) {
     if (permisos.esAdmin) return true;
     return permisos.rol === "mentor" && col && col.mentor_id === estado.perfil.id;
   },
   evalua(col) { return permisos.editaPrograma(col); },
-  /* El colaborador captura su propia actividad; el mentor puede corregirla */
+  /* El colaborador captura su propia actividad; el mentor puede corregirla.
+     El rol de solo lectura nunca escribe. */
   captura(col) {
-    if (!col) return false;
+    if (!col || permisos.esLector) return false;
     return permisos.editaPrograma(col) || col.user_id === estado.perfil.id;
   },
 };
 
 /* ---------------------------------------------------------------- MENÚ --- */
 
+const TODOS = ["admin", "mentor", "colaborador", "lector"];
+const GESTION = ["admin", "mentor", "lector"];
+
 const MENU = [
-  { id: "resumen", nombre: "Resumen general", roles: ["admin", "mentor"], grupo: "Gestión" },
-  { id: "colaboradores", nombre: "Colaboradores", roles: ["admin", "mentor"], grupo: "Gestión" },
-  { id: "panel", nombre: "Panel", roles: ["admin", "mentor", "colaborador"], grupo: "Desarrollo", requiereCol: true },
-  { id: "ruta", nombre: "Ruta de 20 semanas", roles: ["admin", "mentor", "colaborador"], grupo: "Desarrollo", requiereCol: true },
-  { id: "competencias", nombre: "Competencias", roles: ["admin", "mentor", "colaborador"], grupo: "Desarrollo", requiereCol: true },
-  { id: "kpis", nombre: "KPIs", roles: ["admin", "mentor", "colaborador"], grupo: "Desarrollo", requiereCol: true },
-  { id: "visitas", nombre: "Visitas de campo", roles: ["admin", "mentor", "colaborador"], grupo: "Actividad", requiereCol: true },
-  { id: "pipeline", nombre: "Pipeline", roles: ["admin", "mentor", "colaborador"], grupo: "Actividad", requiereCol: true },
-  { id: "cuentas", nombre: "Cuentas", roles: ["admin", "mentor", "colaborador"], grupo: "Actividad", requiereCol: true },
-  { id: "coaching", nombre: "Coaching", roles: ["admin", "mentor", "colaborador"], grupo: "Actividad", requiereCol: true },
-  { id: "graduacion", nombre: "Graduación", roles: ["admin", "mentor", "colaborador"], grupo: "Desarrollo", requiereCol: true },
-  { id: "riesgos", nombre: "Riesgos", roles: ["admin", "mentor"], grupo: "Desarrollo", requiereCol: true },
+  { id: "resumen", nombre: "Resumen general", roles: GESTION, grupo: "Gestión" },
+  { id: "colaboradores", nombre: "Colaboradores", roles: GESTION, grupo: "Gestión" },
+  { id: "panel", nombre: "Panel", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "ruta", nombre: "Ruta de 20 semanas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "competencias", nombre: "Competencias", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "kpis", nombre: "KPIs", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "visitas", nombre: "Visitas de campo", roles: TODOS, grupo: "Actividad", requiereCol: true },
+  { id: "pipeline", nombre: "Pipeline", roles: TODOS, grupo: "Actividad", requiereCol: true },
+  { id: "cuentas", nombre: "Cuentas", roles: TODOS, grupo: "Actividad", requiereCol: true },
+  { id: "coaching", nombre: "Coaching", roles: TODOS, grupo: "Actividad", requiereCol: true },
+  { id: "graduacion", nombre: "Graduación", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "riesgos", nombre: "Riesgos", roles: GESTION, grupo: "Desarrollo", requiereCol: true },
   { id: "configuracion", nombre: "Configurar programa", roles: ["admin", "mentor"], grupo: "Administración", requiereCol: true },
   { id: "plantilla", nombre: "Plantilla base", roles: ["admin"], grupo: "Administración" },
   { id: "usuarios", nombre: "Usuarios y roles", roles: ["admin"], grupo: "Administración" },
-  { id: "cuenta", nombre: "Mi cuenta", roles: ["admin", "mentor", "colaborador"], grupo: "Administración" },
+  { id: "cuenta", nombre: "Mi cuenta", roles: TODOS, grupo: "Administración" },
 ];
 
 const VISTAS = {
@@ -164,7 +169,7 @@ function cabecera(individual) {
   const m = individual ? estado.m : null;
   const visibles = estado.colaboradores.filter((c) => c.estado !== "archivado" || c.id === estado.colId);
 
-  const selector = individual && permisos.esMentor && visibles.length
+  const selector = individual && (permisos.esMentor || permisos.esLector) && visibles.length
     ? h("div", { class: "mini" }, h("span", { text: "Colaborador" }),
       (() => {
         const s = h("select", {}, ...visibles.map((c) =>
@@ -204,7 +209,59 @@ function cabecera(individual) {
 }
 
 export const etiquetaRol = (r) =>
-  r === "admin" ? "Administrador" : r === "mentor" ? "Mentor" : "Colaborador en desarrollo";
+  r === "admin" ? "Administrador"
+    : r === "mentor" ? "Mentor"
+      : r === "lector" ? "Solo lectura"
+        : r === "colaborador" ? "Colaborador en desarrollo"
+          : "Sin acceso";
+
+/* ---------------------------------------------- PANTALLAS INTERMEDIAS --- */
+
+/* La persona tiene cuenta en ISEL pero nadie le ha dado acceso aquí todavía,
+   o un administrador se lo retiró. */
+function pantallaSinAcceso() {
+  vaciar(raiz).appendChild(h("div", { class: "login" },
+    h("div", { class: "login-caja" },
+      h("div", { class: "login-marca" }, h("strong", { text: "ISEL" }),
+        h("span", { text: "Plan de desarrollo comercial" })),
+      h("h2", { class: "sin-acceso-tit", text: "Todavía no tienes acceso" }),
+      h("p", { class: "login-intro", text: `Tu cuenta ${estado.perfil.email} existe, pero un administrador debe concederte acceso a esta herramienta. Pídeselo y vuelve a entrar.` }),
+      h("div", { class: "login-pie" }, botonTema(),
+        boton("Cerrar sesión", async () => { await auth.salir(); location.reload(); }, "ghost")))));
+}
+
+/* Primer ingreso con una contraseña temporal: hay que cambiarla antes de entrar. */
+function pantallaCambioObligado() {
+  const p1 = h("input", { type: "password", placeholder: "Nueva contraseña", autocomplete: "new-password" });
+  const p2 = h("input", { type: "password", placeholder: "Repite la contraseña", autocomplete: "new-password" });
+  const error = h("p", { class: "login-error" });
+  const btn = boton("Guardar y entrar", async () => {
+    error.textContent = "";
+    if (p1.value.length < 8) { error.textContent = "Usa al menos 8 caracteres."; return; }
+    if (p1.value !== p2.value) { error.textContent = "Las dos contraseñas no coinciden."; return; }
+    btn.disabled = true; btn.textContent = "Guardando…";
+    try {
+      await auth.cambiarPassword(p1.value);
+      await perfiles.actualizar(estado.perfil.id, { debe_cambiar: false });
+      estado.perfil.debe_cambiar = false;
+      aviso("Contraseña actualizada");
+      await continuarArranque();
+    } catch (e) {
+      error.textContent = e.message;
+      btn.disabled = false; btn.textContent = "Guardar y entrar";
+    }
+  });
+
+  vaciar(raiz).appendChild(h("div", { class: "login" },
+    h("div", { class: "login-caja" },
+      h("div", { class: "login-marca" }, h("strong", { text: "ISEL" }),
+        h("span", { text: "Plan de desarrollo comercial" })),
+      h("h2", { class: "sin-acceso-tit", text: "Elige tu contraseña" }),
+      h("p", { class: "login-intro", text: "Entraste con una contraseña temporal. Cámbiala por una tuya para continuar." }),
+      h("form", { class: "login-form", onsubmit: (e) => { e.preventDefault(); btn.click(); } },
+        campo("Nueva contraseña", p1), campo("Repite la contraseña", p2), error, btn),
+      h("div", { class: "login-pie" }, botonTema()))));
+}
 
 /* --------------------------------------------------------------- LOGIN --- */
 
@@ -256,16 +313,16 @@ export async function arrancar() {
   vaciar(raiz).appendChild(h("div", { class: "cargando", text: "Cargando el programa…" }));
   try {
     estado.perfil = await miPerfil();
-    if (estado.perfil && estado.perfil.activo === false) {
-      await auth.salir();
-      pantallaAcceso("Tu cuenta está desactivada. Contacta al administrador.");
+
+    // Sin fila de perfil, o con el acceso desactivado, no se entra
+    if (!estado.perfil || estado.perfil.sinAcceso || estado.perfil.activo === false) {
+      pantallaSinAcceso();
       return;
     }
-    estado.plantillaGlobal = await plantilla.leer();
-    try { estado.perfilesCache = await perfiles.listar(); } catch { estado.perfilesCache = []; }
-    await recargarColaboradores();
-    await recargarExpediente();
-    pintar();
+    // Contraseña temporal pendiente de cambiar
+    if (estado.perfil.debe_cambiar) { pantallaCambioObligado(); return; }
+
+    await continuarArranque();
   } catch (e) {
     console.error(e);
     vaciar(raiz).appendChild(h("div", { class: "login" },
@@ -274,6 +331,14 @@ export async function arrancar() {
         h("p", { class: "login-intro", text: traducirError(e.message) }),
         boton("Cerrar sesión", async () => { await auth.salir(); location.reload(); }, "ghost"))));
   }
+}
+
+async function continuarArranque() {
+  estado.plantillaGlobal = await plantilla.leer();
+  try { estado.perfilesCache = await perfiles.listar(); } catch { estado.perfilesCache = []; }
+  await recargarColaboradores();
+  await recargarExpediente();
+  pintar();
 }
 
 auth.alCambiar((s) => { if (!s && estado.perfil) location.reload(); });

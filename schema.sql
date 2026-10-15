@@ -20,10 +20,13 @@ create table if not exists public.pdc_profiles (
   id        uuid primary key references auth.users on delete cascade,
   email     text,
   nombre    text,
-  rol       text not null default 'colaborador'
-            check (rol in ('admin','mentor','colaborador')),
+  rol       text not null default 'colaborador',
   activo    boolean not null default true,
-  creado_en timestamptz not null default now()
+  -- Contraseña temporal pendiente de cambiar en el primer ingreso
+  debe_cambiar boolean not null default false,
+  creado_en timestamptz not null default now(),
+  constraint pdc_profiles_rol_valido
+    check (rol in ('admin','mentor','colaborador','lector'))
 );
 
 -- La configuración del programa de cada persona vive en columnas jsonb para
@@ -203,17 +206,13 @@ insert into public.pdc_plantilla (id, contenido)
 -- ALTA AUTOMÁTICA DE PERFILES
 -- ============================================================================
 
+-- El alta en Authentication NO otorga acceso a esta herramienta: la cuenta se
+-- comparte con las demás aplicaciones de ISEL, y el acceso al plan de
+-- desarrollo lo concede un administrador desde la pantalla de Usuarios.
+-- El disparador se conserva sin efecto para no romper nada que dependa de él.
 create or replace function public.pdc_nuevo_usuario()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  insert into public.pdc_profiles (id, email, nombre, rol)
-  values (
-    new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'nombre', split_part(new.email, '@', 1)),
-    coalesce(new.raw_user_meta_data->>'rol', 'colaborador')
-  )
-  on conflict (id) do nothing;
   return new;
 end $$;
 
@@ -243,11 +242,11 @@ returns boolean language sql stable security definer set search_path = '' as $$
   select coalesce(private.pdc_rol() = 'admin', false)
 $$;
 
--- Expedientes que la persona puede LEER
+-- Expedientes que la persona puede LEER. El rol de solo lectura ve todos.
 create or replace function private.pdc_cols_lectura()
 returns setof uuid language sql stable security definer set search_path = '' as $$
   select c.id from public.pdc_colaboradores c
-   where private.pdc_rol() in ('admin','mentor')
+   where private.pdc_rol() in ('admin','mentor','lector')
       or c.user_id = (select auth.uid())
 $$;
 
@@ -325,7 +324,7 @@ create policy pdc_prof_admin on public.pdc_profiles
 create policy pdc_col_sel on public.pdc_colaboradores
   for select to authenticated
   using (
-    (select private.pdc_rol()) in ('admin','mentor')
+    (select private.pdc_rol()) in ('admin','mentor','lector')
     or user_id = (select auth.uid())
   );
 
@@ -438,6 +437,14 @@ create policy pdc_plt_esc on public.pdc_plantilla
   for all to authenticated
   using ((select private.pdc_es_admin()))
   with check ((select private.pdc_es_admin()));
+
+-- ============================================================================
+-- NOTA SOBRE EL ROL DE SOLO LECTURA
+--
+-- El rol 'lector' aparece únicamente en las políticas de SELECT. Como no está
+-- en pdc_cols_mentor() ni en pdc_cols_captura(), no alcanza ninguna política
+-- de escritura: no puede insertar, modificar ni borrar nada en ninguna tabla.
+-- ============================================================================
 
 -- ============================================================================
 -- PRIMER ADMINISTRADOR
