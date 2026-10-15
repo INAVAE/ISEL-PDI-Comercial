@@ -210,10 +210,17 @@ function cabecera(individual) {
           });
           return s;
         })()),
+      m && m.cal && !m.cal.sinFecha && h("div", { class: "mini" },
+        h("span", { text: "Programa" }),
+        h("b", { class: "mini-dato", title: "Inicio y término previsto" },
+          `${corto(m.cal.inicio)} \u2192 ${corto(m.cal.fin)}`)),
+      m && m.cal && h("div", { class: "mini" }, h("span", { text: "Ritmo" }), lampara(m.cal.estado, m.cal.veredicto)),
       m && h("div", { class: "mini" }, h("span", { text: "Avance del plan" }), h("b", { text: m.avanceTareas + "%" })),
       m && h("div", { class: "mini" }, h("span", { text: "Scorecard" }), h("b", { text: m.score ? m.score.toFixed(2) : "—" })),
       m && h("div", { class: "mini" }, h("span", { text: "Dictamen" }), lampara(m.estado, m.dictamen))));
 }
+
+const corto = (f) => f.toLocaleDateString("es-MX", { day: "2-digit", month: "short" });
 
 export const etiquetaRol = (r) =>
   r === "admin" ? "Administrador"

@@ -5,6 +5,86 @@
 
 import { CORTES } from "./plantilla.js";
 
+/* ===========================================================================
+   Ritmo contra el calendario.
+
+   Responde si el programa va en tiempo, con dos lecturas que conviene no
+   confundir:
+
+   · La semana declarada es el marcador que mueve el mentor a mano. Si se le
+     olvida actualizarlo, la persona aparece atrasada sin estarlo.
+   · El avance de tareas sale de la evidencia: cuántas tareas deberían estar
+     completas a la fecha y cuántas lo están. Esa es la lectura honesta.
+
+   Cuando las dos discrepan, lo que está atrasado es el seguimiento.
+   =========================================================================== */
+
+const DIA = 86400000;
+const soloFecha = (d) => { const x = new Date(d); x.setHours(12, 0, 0, 0); return x; };
+const aFecha = (s) => (s ? soloFecha(s + "T12:00:00") : null);
+const sumarDias = (f, n) => soloFecha(new Date(f.getTime() + n * DIA));
+const diasEntre = (a, b) => Math.round((soloFecha(b) - soloFecha(a)) / DIA);
+
+export function calendario(col, prog, tareasHechas, tareasTotales, hoy = new Date()) {
+  const inicio = aFecha(col.fecha_inicio);
+  const semanas = prog.plan.length || 20;
+  const declarada = Math.max(1, Math.min(semanas, col.semana_actual || 1));
+
+  if (!inicio) {
+    return { sinFecha: true, semanas, declarada, estado: "off",
+      veredicto: "Sin fecha de inicio",
+      detalle: "Registra la fecha de inicio del programa para medir si va en tiempo." };
+  }
+
+  const fin = aFecha(col.fecha_fin_prevista) || sumarDias(inicio, semanas * 7);
+  const finCalculado = !col.fecha_fin_prevista;
+  const diasTotales = Math.max(1, diasEntre(inicio, fin));
+  const transcurridos = diasEntre(inicio, hoy);
+  const restantes = diasEntre(hoy, fin);
+
+  /* Aún no arranca */
+  if (transcurridos < 0) {
+    return { inicio, fin, finCalculado, semanas, declarada, diasTotales,
+      transcurridos, restantes, porArrancar: true, esperada: 0, desviacion: 0,
+      avanceCalendario: 0, estado: "off",
+      veredicto: `Arranca en ${Math.abs(transcurridos)} días`,
+      detalle: `Programado del ${fmt(inicio)} al ${fmt(fin)}.` };
+  }
+
+  /* Semana en la que debería ir según el calendario */
+  const esperada = Math.max(1, Math.min(semanas, Math.floor(transcurridos / 7) + 1));
+  const desviacion = declarada - esperada;
+  const avanceCalendario = Math.max(0, Math.min(1, transcurridos / diasTotales));
+
+  /* Tareas que ya deberían estar completas: las de todas las semanas cursadas */
+  const tareasEsperadas = prog.plan
+    .slice(0, esperada)
+    .reduce((a, s) => a + (s.tasks || []).length, 0);
+  const brechaTareas = tareasHechas - tareasEsperadas;
+
+  const terminado = restantes < 0;
+  let estado, veredicto;
+  if (terminado && desviacion >= 0) { estado = "run"; veredicto = "Programa concluido"; }
+  else if (terminado) { estado = "fault"; veredicto = `Venció el plazo en la semana ${declarada}`; }
+  else if (desviacion >= 1) { estado = "run"; veredicto = `${desviacion} ${plural(desviacion, "semana")} adelante`; }
+  else if (desviacion === 0) { estado = "run"; veredicto = "En tiempo"; }
+  else if (desviacion === -1) { estado = "signal"; veredicto = "1 semana de retraso"; }
+  else { estado = "fault"; veredicto = `${-desviacion} semanas de retraso`; }
+
+  return {
+    inicio, fin, finCalculado, semanas, declarada, esperada, desviacion,
+    diasTotales, transcurridos, restantes, avanceCalendario, terminado,
+    tareasEsperadas, tareasHechas, tareasTotales, brechaTareas,
+    estado, veredicto,
+    detalle: terminado
+      ? `El plazo terminó el ${fmt(fin)}.`
+      : `Semana ${esperada} según el calendario · quedan ${restantes} días`,
+  };
+}
+
+const plural = (n, p) => (Math.abs(n) === 1 ? p : p + "s");
+const fmt = (f) => f.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+
 export function metricas(col, exp) {
   const prog = programa(col);
   const evals = indexEvals(exp.evals);
@@ -109,6 +189,7 @@ export function metricas(col, exp) {
     prog, evals, nivel, promedioGrupo, scoreCorte, cortesConDatos, ultimoCorte, score,
     criticasBajas, criticasSinEvaluar,
     tareasTotales, tareasHechas, avanceTareas: pctSeguro(tareasHechas, tareasTotales), tareaHecha: (s, t) => hechas.has(clave(s, t)),
+    cal: calendario(col, prog, tareasHechas, tareasTotales),
     visitas, visitasSolo, visitasNuevas,
     opps, abiertas, pipeline, pipelineCal, ponderado, ganadas, ventas, tasaCierre, creadas, sinProxima,
     cuentas, planesAprobados,
@@ -185,6 +266,7 @@ export function resumenColaborador(col, datos) {
     ventas: suma(opps.filter((o) => o.etapa === "ganada"), "valor"),
     cuentas: cuentas.length,
     planes: cuentas.filter((c) => c.aprobado).length,
+    cal: calendario(col, prog, avance.length, tareasTotales),
     promedioGrupo: (gid) => {
       const comps = prog.competencias.filter((c) => c.grupo === gid);
       const v = comps.map((c) => nivel(c.id, ultimo)).filter((x) => x > 0);

@@ -115,8 +115,38 @@ sucursal, fecha de inicio y mentor asignado. Se pueden archivar, reactivar, marc
 graduados o borrar. Al registrar a alguien se le genera automáticamente su copia del programa
 completo.
 
-**Panel**. El tablero individual: puntos de graduación, semana en curso, indicadores clave,
-radar de competencias, visitas contra plan, embudo, evolución del scorecard y alertas.
+**Panel**. El tablero individual: puntos de graduación, semana en curso, ritmo del programa,
+indicadores clave, radar de competencias, visitas contra plan, embudo, evolución del scorecard
+y alertas.
+
+### Ritmo del programa
+
+Responde si el plan se está cumpliendo en tiempo, no solo si se está cumpliendo bien. Alguien
+puede tener un scorecard de 4.2 y llevar tres semanas de retraso: eso es un problema de
+programa aunque el desempeño sea bueno.
+
+A partir de la fecha de inicio, la aplicación calcula en qué semana debería ir la persona hoy
+y la compara con la semana que lleva marcada. La línea de tiempo muestra ambas marcas y el
+tramo de desfase entre ellas, en verde si va adelante y en rojo si va atrás.
+
+Se muestran dos lecturas porque miden cosas distintas:
+
+- **La semana declarada** es un marcador que el mentor mueve a mano. Si se le olvida
+  actualizarlo, la persona aparece atrasada sin estarlo.
+- **El avance de tareas** sale de la evidencia: cuántas tareas deberían estar completas a la
+  fecha y cuántas lo están. Esta es la lectura honesta.
+
+Cuando las dos discrepan, la aplicación lo dice: si la semana va atrasada pero las tareas están
+al día, lo que falta es mover el marcador; si la semana va al corriente pero faltan tareas, el
+avance real está por debajo de lo que aparenta.
+
+El **término previsto** se calcula sumando una semana por cada semana del plan. Se puede
+definir a mano al registrar al colaborador o editando su ficha, que es lo que se hace cuando el
+programa se pausa por vacaciones o incapacidad: al recorrer el cierre, la persona deja de
+aparecer atrasada por algo que no estuvo en sus manos.
+
+El resumen general trae una columna de **Ritmo** con el veredicto de cada participante, que se
+puede ordenar para ver primero a quien más se ha rezagado.
 
 **Ruta de 20 semanas**. El programa mes por mes y semana por semana, con lista de verificación.
 El colaborador marca lo que completa y adjunta la evidencia; el mentor lo revisa.

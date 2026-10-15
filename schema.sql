@@ -41,6 +41,9 @@ create table if not exists public.pdc_colaboradores (
   telefono       text,
   sucursal       text,
   fecha_inicio   date,
+  -- Término previsto. Vacío = se calcula desde fecha_inicio y el número de
+  -- semanas del plan. Se define a mano para absorber pausas del programa.
+  fecha_fin_prevista date,
   notas          text,
   estado         text not null default 'activo'
                  check (estado in ('activo','archivado','graduado')),

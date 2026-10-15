@@ -80,6 +80,7 @@ export function vistaResumen(ctx) {
         ...f.orden,
         obtener: (x) => ({
           nombre: x.col.nombre, sucursal: x.col.sucursal || "", avance: x.avance, score: x.score,
+          ritmo: x.cal.sinFecha ? -99 : (x.cal.desviacion ?? 0),
           visitas: x.visitas, solo: x.visitasSolo, opps: x.opps, pipeline: x.pipeline,
           ventas: x.ventas, cuentas: x.cuentas, planes: x.planes,
         })[f.orden.clave],
@@ -101,7 +102,7 @@ export function vistaResumen(ctx) {
         h("div", { class: "tabla-scroll" }, h("table", { class: "tabla" },
           h("thead", {}, h("tr", {},
             enc("Colaborador", "nombre"), enc("Sucursal", "sucursal"),
-            enc("Avance", "avance", true), enc("Scorecard", "score", true),
+            enc("Ritmo", "ritmo"), enc("Avance", "avance", true), enc("Scorecard", "score", true),
             enc("Visitas", "visitas", true), enc("Solo", "solo", true),
             enc("Oportunidades", "opps", true), enc("Pipeline", "pipeline", true),
             enc("Ventas", "ventas", true), enc("Cuentas", "cuentas", true), enc("Planes", "planes", true))),
@@ -112,6 +113,7 @@ export function vistaResumen(ctx) {
             h("td", {}, h("b", { text: x.col.nombre }), h("br"),
               h("span", { class: "gris", text: x.col.puesto_actual || "" })),
             h("td", { text: x.col.sucursal || "\u2014" }),
+            h("td", {}, lampara(x.cal.estado, x.cal.sinFecha ? "sin fecha" : x.cal.veredicto)),
             h("td", { class: "num" }, String(x.avance) + "%",
               barra(x.avance, 100, x.avance >= 80 ? "var(--run)" : "var(--signal)")),
             h("td", { class: "num" }, h("b", { class: x.score >= 4 ? "verde-fuerte" : "", text: x.score ? x.score.toFixed(2) : "\u2014" })),
@@ -299,10 +301,12 @@ async function formColaborador(ctx, existente) {
       campo("Correo", entrada(f.email, set("email"), { type: "email" })),
       campo("Teléfono", entrada(f.telefono, set("telefono"))),
       campo("Fecha de inicio del programa", entrada(f.fecha_inicio, set("fecha_inicio"), { type: "date" })),
+      campo("Término previsto", entrada(f.fecha_fin_prevista || "", (v) => { f.fecha_fin_prevista = v || null; }, { type: "date" })),
       campo("Mentor asignado", seleccion(f.mentor_id || "", mentores, (v) => { f.mentor_id = v || null; }, { disabled: !ctx.permisos.esAdmin && ctx.permisos.rol !== "mentor" })),
       campo("Cuenta de acceso del colaborador", seleccion(f.user_id || "", usuarios, (v) => { f.user_id = v || null; })),
       campo("Notas", area(f.notas, set("notas"), 3, { placeholder: "Contexto, antecedentes, acuerdos previos" }), "full")),
-    h("p", { class: "nota-form", text: "La cuenta de acceso vincula a esta persona con un usuario de Supabase para que entre y registre su propio avance. Si todavía no existe, créala en Supabase y vuelve a editar este registro." }));
+    h("p", { class: "nota-form", text: "Si dejas vacío el término previsto, se calcula sumando una semana por cada semana del plan. Defínelo a mano cuando el programa se pause por vacaciones o incapacidad, para que la persona no aparezca atrasada." }),
+    h("p", { class: "nota-form", text: "La cuenta de acceso vincula a esta persona con un usuario del sistema para que entre y registre su propio avance. Si todavía no existe, créala primero en Usuarios y roles." }));
 
   modal(esNuevo ? "Registrar colaborador" : "Editar colaborador", cuerpo, [
     boton("Cancelar", cerrarModal, "ghost"),

@@ -9,7 +9,7 @@ import { clave } from "./metricas.js";
 import {
   h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
   lampara, barra, dinero, numero, pct, vacio, radar, barras, barrasH, lineas, dial, color, cls, tarjeta, uid,
-  barraFiltros,
+  barraFiltros, lineaTiempo, fecha,
 } from "./ui.js";
 
 /* ============================================================== PANEL ===== */
@@ -43,6 +43,8 @@ export function vistaPanel(ctx) {
           cifra(dinero(m.pipeline), "pipeline abierto"),
           cifra(m.cuentas.length, "cuentas mapeadas")),
         boton("Abrir la semana", () => ctx.ir("ruta")))),
+
+    bloqueRitmo(m.cal, ctx),
 
     h("div", { class: "grid-4" },
       tarjeta("Pipeline calificado", dinero(m.pipelineCal), "Meta de graduación: " + dinero(metaDe(prog, "pipeline_cal")), pct(m.pipelineCal, metaDe(prog, "pipeline_cal"))),
@@ -78,6 +80,62 @@ export function vistaPanel(ctx) {
 }
 
 const cifra = (valor, texto) => h("div", {}, h("b", { text: String(valor) }), h("span", { text: texto }));
+
+/* ----------------------------------------------------------- RITMO ------
+   Responde si el programa va en tiempo. Muestra dos lecturas porque miden
+   cosas distintas: la semana la mueve el mentor a mano, las tareas salen de
+   la evidencia. Cuando discrepan, lo atrasado es el seguimiento.
+   -------------------------------------------------------------------------- */
+
+function bloqueRitmo(cal, ctx) {
+  if (cal.sinFecha)
+    return panel("Ritmo del programa", null,
+      vacio("Sin fecha de inicio", cal.detalle,
+        ctx.permisos.editaPrograma(ctx.estado.col)
+          ? boton("Registrar la fecha", () => ctx.ir("colaboradores"), "ghost") : null));
+
+  const dias = h("div", { class: "ritmo-fechas" },
+    datoFecha("Inicio", fecha(cal.inicio.toISOString().slice(0, 10))),
+    datoFecha("Término previsto", fecha(cal.fin.toISOString().slice(0, 10)),
+      cal.finCalculado ? "calculado a " + cal.semanas + " semanas" : "definido por el mentor"),
+    cal.porArrancar ? null
+      : datoFecha(cal.terminado ? "Plazo vencido" : "Días restantes",
+        cal.terminado ? `hace ${Math.abs(cal.restantes)} días` : String(cal.restantes),
+        `${cal.transcurridos} de ${cal.diasTotales} transcurridos`));
+
+  if (cal.porArrancar)
+    return panel("Ritmo del programa", cal.detalle,
+      h("div", { class: "ritmo" }, h("div", { class: "ritmo-veredicto" },
+        lampara(cal.estado, cal.veredicto)), dias));
+
+  const brecha = cal.brechaTareas;
+  const lecturaTareas = brecha >= 0
+    ? { estado: "run", texto: `${cal.tareasHechas} tareas completadas, ${brecha === 0 ? "justo las que tocan" : brecha + " por delante"}` }
+    : { estado: brecha <= -5 ? "fault" : "signal",
+        texto: `${cal.tareasHechas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas` };
+
+  /* El marcador de semana y la evidencia no coinciden */
+  const discrepa = (cal.desviacion < 0 && brecha >= 0) || (cal.desviacion >= 0 && brecha <= -5);
+
+  return panel("Ritmo del programa", cal.detalle,
+    h("div", { class: "ritmo" },
+      h("div", { class: "ritmo-veredicto" },
+        h("strong", { class: "ritmo-titulo v-" + cal.estado, text: cal.veredicto }),
+        lampara(lecturaTareas.estado, lecturaTareas.texto)),
+      lineaTiempo(cal),
+      dias,
+      discrepa ? h("p", { class: "ritmo-nota" },
+        cal.desviacion < 0
+          ? "La semana marcada va atrasada pero las tareas están al día: probablemente falta mover el marcador de semana."
+          : "El marcador de semana va al corriente pero faltan tareas por completar: el avance real está por debajo.")
+        : null));
+}
+
+const datoFecha = (titulo, valor, nota) =>
+  h("div", { class: "ritmo-fecha" },
+    h("span", { text: titulo }),
+    h("b", { text: valor }),
+    nota ? h("em", { text: nota }) : null);
 
 function metaDe(prog, fuente) {
   const c = prog.criterios.find((x) => x.fuente === fuente);
