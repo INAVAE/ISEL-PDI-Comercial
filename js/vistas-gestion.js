@@ -638,7 +638,7 @@ export function vistaCuenta(ctx) {
           ctx.estado.perfil.nombre = nombre; aviso("Nombre actualizado"); ctx.ir("cuenta");
         }))),
 
-    panel("Cambiar contraseña", "Se aplica de inmediato a tu usuario de Supabase.",
+    panel("Cambiar contraseña", "El cambio se aplica de inmediato. La contraseña anterior deja de funcionar.",
       h("div", { class: "form-grid" },
         campo("Nueva contraseña", entrada("", (v) => { pass1 = v; }, { type: "password" })),
         campo("Repetir contraseña", entrada("", (v) => { pass2 = v; }, { type: "password" }))),
@@ -649,7 +649,7 @@ export function vistaCuenta(ctx) {
         catch (e) { aviso(e.message, "error"); }
       })),
 
-    panel("Qué puedes hacer con tu rol", null,
+    panel("Qué puedes hacer con tu rol", "El tuyo aparece resaltado. Los demás se muestran para que sepas a quién pedirle lo que tú no puedes hacer.",
       h("div", { class: "roles" },
         bloqueRol("Administrador", p.rol === "admin", [
           "Ver y editar todo el sistema", "Crear, archivar y borrar colaboradores",
@@ -665,6 +665,13 @@ export function vistaCuenta(ctx) {
           "Ver únicamente su propio expediente", "Marcar las tareas de su plan conforme las completa",
           "Registrar visitas, oportunidades y cuentas", "Capturar sus resultados de indicadores",
           "Consultar sus calificaciones, pero no modificarlas",
+        ]),
+        bloqueRol("Solo lectura", p.rol === "lector", [
+          "Ver el resumen comparativo de todos los participantes",
+          "Abrir el expediente completo de cualquiera",
+          "Consultar competencias, visitas, pipeline, cuentas y dictamen",
+          "Usar todos los filtros y ordenar las tablas",
+          "No puede modificar nada ni gestionar usuarios",
         ]))));
 }
 
