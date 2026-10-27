@@ -58,16 +58,20 @@ const GESTION = ["admin", "mentor", "lector"];
 const MENU = [
   { id: "resumen", nombre: "Resumen general", roles: GESTION, grupo: "Gestión" },
   { id: "colaboradores", nombre: "Colaboradores", roles: GESTION, grupo: "Gestión" },
-  { id: "panel", nombre: "Panel", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "ruta", nombre: "Ruta de 20 semanas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "competencias", nombre: "Competencias", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "kpis", nombre: "KPIs", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "visitas", nombre: "Visitas de campo", roles: TODOS, grupo: "Actividad", requiereCol: true },
-  { id: "pipeline", nombre: "Pipeline", roles: TODOS, grupo: "Actividad", requiereCol: true },
-  { id: "cuentas", nombre: "Cuentas", roles: TODOS, grupo: "Actividad", requiereCol: true },
-  { id: "coaching", nombre: "Coaching", roles: TODOS, grupo: "Actividad", requiereCol: true },
-  { id: "graduacion", nombre: "Graduación", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "riesgos", nombre: "Riesgos", roles: GESTION, grupo: "Desarrollo", requiereCol: true },
+  /* Los diez módulos del programa van numerados en el orden en que se usan,
+     para poder referirse a ellos por número entre mentor y colaborador. El
+     número es fijo: no se recalcula según lo que cada rol alcanza a ver, para
+     que "el 6" signifique lo mismo para todos. */
+  { id: "panel", n: 1, nombre: "Panel", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "ruta", n: 2, nombre: "Ruta de 20 semanas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "visitas", n: 3, nombre: "Visitas de campo", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "pipeline", n: 4, nombre: "Pipeline", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "cuentas", n: 5, nombre: "Cuentas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "kpis", n: 6, nombre: "KPIs", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "competencias", n: 7, nombre: "Competencias", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "riesgos", n: 8, nombre: "Riesgos", roles: GESTION, grupo: "Desarrollo", requiereCol: true },
+  { id: "coaching", n: 9, nombre: "Coaching", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "graduacion", n: 10, nombre: "Graduación", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
   { id: "configuracion", nombre: "Configurar programa", roles: ["admin", "mentor"], grupo: "Administración", requiereCol: true },
   { id: "plantilla", nombre: "Plantilla base", roles: ["admin"], grupo: "Administración" },
   { id: "usuarios", nombre: "Usuarios y roles", roles: ["admin"], grupo: "Administración" },
@@ -154,7 +158,11 @@ export function pintar() {
             class: cls("rail-btn", estado.vista === x.id && "activo", bloqueado && "inactivo"),
             disabled: bloqueado,
             onclick: () => ir(x.id),
-          }, x.nombre);
+          },
+            /* El número va en su propio elemento para que quede alineado en
+               columna y el nombre no se desacomode entre un dígito y dos */
+            x.n ? h("span", { class: "rail-n", text: x.n }) : null,
+            h("span", { class: "rail-txt", text: x.nombre }));
         })))),
     h("div", { class: "rail-pie" },
       h("span", { class: "rail-quien", text: estado.perfil.nombre || estado.perfil.email }),
