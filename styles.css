@@ -16,6 +16,7 @@
   --panel2: #F3F4F0;
   --steel: #22303B;
   --graphite: #63707C;
+  --sub-sobre-fondo: #555F6A;
   --line: #D2D5CE;
   --signal: #F0A500;
   --run: #1D8A5F;
@@ -82,6 +83,7 @@
   --panel2: #212B32;
   --steel: #DDE4E8;
   --graphite: #8D9BA5;
+  --sub-sobre-fondo: #8D9BA5;
   --line: #2E3A43;
   --signal: #F5B526;
   --run: #35B583;
@@ -213,7 +215,8 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .main { flex: 1; min-width: 0; }
 
 .barra-estado { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap;
-  padding: 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+  /* El hueco de la derecha lo ocupa el botón de ayuda, anclado */
+  padding: 18px 74px 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
 .barra-estado h1 { font-size: 27px; margin: 0; letter-spacing: .01em; }
 .barra-estado p { margin: 2px 0 0; color: var(--graphite); font-size: 12.5px; }
 .barra-estado-der { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
@@ -592,4 +595,66 @@ input[type=checkbox] { width: auto; }
   .rail, .acciones, .btn, .tabs { display: none !important; }
   .app, .main { display: block; }
   .panel-card { break-inside: avoid; border: 1px solid #ccc; }
+}
+
+/* =========================================================== AYUDA ======= */
+
+/* Botón de la barra superior. Se alinea con los demás "mini" de la barra,
+   que están pegados abajo, y por eso lleva su propio margen inferior. */
+.ayuda-btn { position: absolute; top: 17px; right: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--panel); color: var(--graphite);
+  cursor: pointer; font: inherit; }
+.ayuda-btn:hover { color: var(--steel); border-color: var(--graphite); }
+.ayuda-btn.activo { background: var(--accion-fondo); color: var(--accion-texto); border-color: var(--accion-fondo); }
+/* Contador de observaciones sin revisar; solo lo ve el administrador */
+.ayuda-pin { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 9px; background: var(--fault); color: #FFF; font-size: 10.5px; font-weight: 700;
+  line-height: 17px; text-align: center; }
+
+.ayuda-enc h2 { margin: 0 0 2px; }
+/* Este subtítulo va sobre el fondo de página, no sobre un panel blanco:
+   con el gris normal se queda en 4.08 de contraste. */
+.ayuda-enc .sub { margin-bottom: 16px; color: var(--sub-sobre-fondo); }
+/* Acotado a la ayuda: suelto, le cambiaba el aire a las pestañas de
+   meses de la ruta, que no es asunto de este archivo. */
+.vista-ayuda > .tabs { margin-bottom: 16px; }
+
+/* --- acordeón de capítulos y preguntas --- */
+.ay-cap { border: 1px solid var(--line); border-radius: 6px; margin-bottom: 8px; background: var(--panel); }
+.ay-cap.abierto { border-color: var(--graphite); }
+.ay-cap-h { display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 13px 16px;
+  background: none; border: 0; cursor: pointer; font: inherit; text-align: left; color: var(--steel); }
+.ay-cap-h:hover { background: var(--panel2); }
+.ay-cap-t { flex: 1 1 auto; display: flex; flex-direction: column; gap: 3px; }
+.ay-n { font-weight: 600; font-size: 14.5px; }
+.ay-cap .tiny { font-size: 12px; color: var(--graphite); }
+.ay-mas { flex: 0 0 auto; font-size: 18px; line-height: 1; color: var(--graphite); }
+.ay-cap-b { padding: 0 16px 16px; border-top: 1px solid var(--line); padding-top: 14px; }
+.ay-cap-b p { margin: 0; max-width: 90ch; }
+
+.ay-pasos { margin: 0; padding-left: 22px; max-width: 90ch; }
+.ay-pasos li { margin-bottom: 9px; line-height: 1.55; }
+.ay-pasos li:last-child { margin-bottom: 0; }
+
+/* Advertencia dentro de un capítulo: lo que la gente se salta y luego pregunta */
+.ay-ojo { margin-top: 14px; padding: 11px 14px; border-left: 3px solid var(--signal);
+  background: var(--panel2); border-radius: 0 4px 4px 0; font-size: 13px; max-width: 90ch; }
+
+/* --- buzón --- */
+.ayuda-buzon .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.ay-sug { border: 1px solid var(--line); border-radius: 6px; padding: 13px 15px; margin-bottom: 10px; }
+.ay-sug-h { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+.ay-sug-fecha { margin-left: auto; }
+.ay-sug-t { font-weight: 600; font-size: 14px; }
+.ay-sug-d { margin-top: 6px; white-space: pre-wrap; font-size: 13px; }
+.ay-sug-ctx { margin-top: 7px; color: var(--graphite); }
+.ay-sug-r { margin-top: 10px; padding: 9px 12px; background: var(--panel2); border-radius: 4px; font-size: 13px; }
+.ay-resp { width: 100%; margin-top: 10px; padding: 8px 10px; border: 1px solid var(--line);
+  border-radius: 4px; background: var(--panel); color: var(--steel); font: inherit; font-size: 13px; }
+.ay-sug-acciones { margin-top: 8px; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 860px) {
+  .ayuda-buzon .campos { grid-template-columns: 1fr; }
 }

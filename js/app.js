@@ -4,11 +4,12 @@
 
 import { auth, miPerfil, colaboradores, cargarExpediente, plantilla, perfiles,
   enlaceRecuperacion, errorEnlace } from "./db.js";
-import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, iniciarTema, fecha } from "./ui.js";
+import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, iniciarTema, fecha, etiquetaRol } from "./ui.js";
 import { metricas } from "./metricas.js";
 import { vistaResumen, vistaColaboradores, vistaUsuarios, vistaPlantilla, vistaCuenta } from "./vistas-gestion.js";
 import { vistaPanel, vistaRuta, vistaCompetencias, vistaKpis, vistaGraduacion, vistaRiesgos, vistaConfiguracion } from "./vistas-programa.js";
 import { vistaVisitas, vistaPipeline, vistaCuentas, vistaCoaching } from "./vistas-actividad.js";
+import { vistaAyuda, recargarSugerencias } from "./vistas-ayuda.js";
 
 const raiz = document.getElementById("app");
 
@@ -25,7 +26,9 @@ export const estado = {
   /* Recuerda pestañas y filtros para que no se reinicien al guardar */
   /* semanasAbiertas: qué semanas de la ruta quedaron desplegadas. Vive aquí
      y no en el DOM porque cada refresco vuelve a pintar la vista. */
-  ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan", semanasAbiertas: null },
+  sugerencias: null, sugPendientes: 0,
+  ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan", semanasAbiertas: null,
+        ayudaTab: "guia", ayudaCap: null, ayudaFaq: null, sugForm: null, sugFiltro: "" },
 };
 
 /* ------------------------------------------------------------- PERMISOS -- */
@@ -84,6 +87,7 @@ const VISTAS = {
   panel: vistaPanel, ruta: vistaRuta, competencias: vistaCompetencias, kpis: vistaKpis,
   graduacion: vistaGraduacion, riesgos: vistaRiesgos, configuracion: vistaConfiguracion,
   visitas: vistaVisitas, pipeline: vistaPipeline, cuentas: vistaCuentas, coaching: vistaCoaching,
+  ayuda: vistaAyuda,
 };
 
 /* ---------------------------------------------------------------- CARGA -- */
@@ -128,6 +132,11 @@ export async function refrescarTodo(vista) {
   conservandoScroll(pintar);
 }
 
+/* Vuelve a dibujar todo con los datos que ya hay, conservando el scroll.
+   Lo necesitan las vistas que cambian algo mostrado en la cabecera, como
+   el contador del botón de ayuda. */
+export const repintar = () => conservandoScroll(pintar);
+
 export const ir = (vista) => { estado.vista = vista; pintar(); window.scrollTo(0, 0); };
 
 export async function elegirColaborador(id) {
@@ -144,7 +153,10 @@ export async function elegirColaborador(id) {
 export function pintar() {
   const menu = MENU.filter((x) => x.roles.includes(permisos.rol));
   const disponible = menu.filter((x) => !x.requiereCol || estado.col);
-  if (!disponible.some((x) => x.id === estado.vista)) estado.vista = disponible[0] ? disponible[0].id : "cuenta";
+  /* La ayuda se abre desde la barra superior, no desde el menú, así que
+     no está en MENU y hay que dejarla pasar por su cuenta. */
+  if (estado.vista !== "ayuda" && !disponible.some((x) => x.id === estado.vista))
+    estado.vista = disponible[0] ? disponible[0].id : "cuenta";
 
   const grupos = [...new Set(menu.map((x) => x.grupo))];
   const rail = h("aside", { class: "rail" },
@@ -179,7 +191,7 @@ export function pintar() {
 
   try {
     const vista = VISTAS[estado.vista];
-    lienzo.appendChild(vista({ estado, permisos, ir, refrescar, refrescarTodo, elegirColaborador }));
+    lienzo.appendChild(vista({ estado, permisos, ir, refrescar, refrescarTodo, elegirColaborador, repintar }));
   } catch (err) {
     console.error(err);
     lienzo.appendChild(panel("No se pudo mostrar esta sección",
@@ -240,15 +252,48 @@ function cabecera(individual) {
       m && m.cal && h("div", { class: "mini" }, h("span", { text: "Ritmo" }), lampara(m.cal.estado, m.cal.veredicto)),
       m && h("div", { class: "mini" }, h("span", { text: "Avance del plan" }), h("b", { text: m.avanceTareas + "%" })),
       m && h("div", { class: "mini" }, h("span", { text: "Scorecard" }), h("b", { text: m.score ? m.score.toFixed(2) : "—" })),
-      m && h("div", { class: "mini" }, h("span", { text: "Dictamen" }), lampara(m.estado, m.dictamen))));
+      m && h("div", { class: "mini" }, h("span", { text: "Dictamen" }), lampara(m.estado, m.dictamen))),
+    botonAyuda());
 }
 
-export const etiquetaRol = (r) =>
-  r === "admin" ? "Administrador"
-    : r === "mentor" ? "Mentor"
-      : r === "lector" ? "Solo lectura"
-        : r === "colaborador" ? "Colaborador en desarrollo"
-          : "Sin acceso";
+/* El botón de ayuda vive en la esquina de la barra superior y lo ve
+   cualquier rol: la duda de cómo se usa algo no distingue entre mentor y
+   colaborador. Va anclado y fuera del grupo de indicadores porque ese
+   grupo envuelve en pantallas angostas, y un elemento más ahí hacía
+   crecer la cabecera. El contador solo aparece para el administrador,
+   que es quien atiende el buzón. */
+function botonAyuda() {
+  const pend = permisos.esAdmin ? (estado.sugPendientes || 0) : 0;
+  const b = h("button", {
+    class: cls("ayuda-btn", estado.vista === "ayuda" && "activo"),
+    title: "Ayuda: manual, preguntas frecuentes y buzón de observaciones",
+    "aria-label": "Ayuda",
+    onclick: () => ir("ayuda"),
+  },
+    iconoAyuda(),
+    pend ? h("span", { class: "ayuda-pin", text: String(pend) }) : null);
+  return b;
+}
+
+function iconoAyuda() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "18");
+  svg.setAttribute("height", "18");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.9");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("aria-hidden", "true");
+  for (const d of ["M12 2.8a9.2 9.2 0 1 0 0 18.4 9.2 9.2 0 0 0 0-18.4",
+    "M9.4 9.3a2.7 2.7 0 1 1 3.4 3.1c-.6.2-.9.8-.9 1.4v.5",
+    "M12 17.3h.01"]) {
+    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    p.setAttribute("d", d);
+    svg.appendChild(p);
+  }
+  return svg;
+}
 
 /* ---------------------------------------------- PANTALLAS INTERMEDIAS --- */
 
@@ -384,6 +429,9 @@ async function continuarArranque() {
   try { estado.perfilesCache = await perfiles.listar(); } catch { estado.perfilesCache = []; }
   await recargarColaboradores();
   await recargarExpediente();
+  /* El buzón no debe estorbar el arranque: si la tabla todavía no existe
+     o falla, la ayuda sigue abriendo y solo esa pestaña avisa. */
+  await recargarSugerencias({ estado, permisos });
   pintar();
 }
 

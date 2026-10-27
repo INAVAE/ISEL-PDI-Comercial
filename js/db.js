@@ -237,3 +237,69 @@ export const evaluaciones = {
       { onConflict: "colaborador_id,competencia_id,corte" }
     ).select())[0],
 };
+
+/* ------------------------------------------------- BUZÓN DE OBSERVACIONES --
+   Para que cualquiera reporte un error o pida un cambio sin salir de la
+   herramienta. Lo que se dice de pasillo se pierde; esto queda escrito,
+   con fecha y con dueño.
+
+   El nombre y el correo se guardan tal como estaban al enviarla: si la
+   persona cambia de nombre o se da de baja, el reporte conserva de quién
+   vino. Las políticas de la base hacen el resto: cada quien lee las suyas,
+   el administrador las lee todas y es el único que puede responderlas.
+   -------------------------------------------------------------------------- */
+
+/* La tabla puede no existir todavía si no se ha corrido la migración.
+   Conviene distinguirlo de una falla de permisos o de red. */
+export const SIN_BUZON = "SIN_BUZON";
+const falta = (e) => /relation .* does not exist|schema cache|PGRST205|42P01/i.test(e.message || "");
+
+export const sugerencias = {
+  async listar() {
+    const { data, error } = await sb.from("pdc_sugerencias")
+      .select("*").order("creado_en", { ascending: false }).limit(300);
+    if (error) throw new Error(falta(error) ? SIN_BUZON : error.message);
+    return data || [];
+  },
+
+  async crear(perfil, campos) {
+    const fila = {
+      user_id: perfil.id,
+      autor: perfil.nombre || perfil.email || "",
+      autor_email: perfil.email || null,
+      rol: perfil.rol || null,
+      tipo: campos.tipo || "mejora",
+      pantalla: campos.pantalla || null,
+      titulo: campos.titulo,
+      detalle: campos.detalle,
+      /* Dónde ocurrió. Es lo primero que se pregunta al diagnosticar
+         y lo que peor se recuerda. */
+      contexto: {
+        navegador: navigator.userAgent,
+        ventana: `${window.innerWidth}x${window.innerHeight}`,
+        tema: document.documentElement.dataset.tema || "claro",
+      },
+    };
+    const { data, error } = await sb.from("pdc_sugerencias").insert(fila).select();
+    if (error) throw new Error(falta(error) ? SIN_BUZON : error.message);
+    return (data || [])[0];
+  },
+
+  async actualizar(id, campos, adminId) {
+    const { data, error } = await sb.from("pdc_sugerencias")
+      .update({ ...campos, atendida_por: adminId, atendida_en: new Date().toISOString() })
+      .eq("id", id).select();
+    if (error) throw new Error(falta(error) ? SIN_BUZON : error.message);
+    return (data || [])[0];
+  },
+
+  /* Para el contador del botón de ayuda. Nunca estorba: si algo falla,
+     devuelve cero en vez de romper el arranque. */
+  async pendientes() {
+    try {
+      const { count, error } = await sb.from("pdc_sugerencias")
+        .select("id", { count: "exact", head: true }).eq("estado", "nueva");
+      return error ? 0 : (count || 0);
+    } catch { return 0; }
+  },
+};

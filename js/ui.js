@@ -26,6 +26,15 @@ export function h(tag, props = {}, ...kids) {
   return el;
 }
 
+/* Nombre legible de cada rol. Vive aquí y no en app.js porque lo usan
+   varias vistas, y traerlo desde app.js crearía una importación circular. */
+export const etiquetaRol = (r) =>
+  r === "admin" ? "Administrador"
+    : r === "mentor" ? "Mentor"
+      : r === "lector" ? "Solo lectura"
+        : r === "colaborador" ? "Colaborador en desarrollo"
+          : "Sin acceso";
+
 export const vaciar = (el) => { while (el.firstChild) el.removeChild(el.firstChild); return el; };
 export const uid = () => Math.random().toString(36).slice(2, 10);
 export const cls = (...xs) => xs.filter(Boolean).join(" ");
