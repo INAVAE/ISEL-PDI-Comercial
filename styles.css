@@ -658,3 +658,9 @@ input[type=checkbox] { width: auto; }
 @media (max-width: 860px) {
   .ayuda-buzon .campos { grid-template-columns: 1fr; }
 }
+
+/* Aviso al intentar cerrar un formulario con cambios sin guardar */
+.modal-descartar { margin: 0 22px 20px; padding: 13px 16px; border-radius: 6px;
+  border: 1px solid var(--fault); background: var(--panel2); }
+.modal-descartar p { margin: 0 0 10px; font-size: 13px; color: var(--steel); max-width: 62ch; }
+.modal-descartar .acciones-fila { gap: 8px; }

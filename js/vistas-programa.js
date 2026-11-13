@@ -7,7 +7,7 @@ import { colaboradores as dbCol, avance as dbAvance, evaluaciones, kpiResultados
 import { NIVELES, CORTES, MADUREZ, FUENTES_CRITERIO } from "./plantilla.js";
 import { clave } from "./metricas.js";
 import {
-  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
+  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, cerrarModalYa, aviso, confirmar,
   lampara, barra, dinero, numero, pct, vacio, radar, barras, barrasH, lineas, dial, color, cls, tarjeta, uid,
   barraFiltros, lineaTiempo, tacometroTareas, fecha,
 } from "./ui.js";
@@ -272,10 +272,10 @@ export function vistaRuta(ctx) {
         const detalle = h("div", { class: "check-detalle", style: { display: "none" } },
           campo("Evidencia entregada", entrada(registro.evidencia || "", async (v) => {
             await dbAvance.anotar(col.id, s.id, clave(s.id, t.id), { evidencia: v, hecho: chk.checked }); aviso("Evidencia guardada");
-          }, { disabled: !puedeMarcar, placeholder: "Liga, archivo o descripción" }), "full"),
+          }, { disabled: !puedeMarcar, soloAlSalir: true, placeholder: "Liga, archivo o descripción" }), "full"),
           campo("Nota", entrada(registro.nota || "", async (v) => {
             await dbAvance.anotar(col.id, s.id, clave(s.id, t.id), { nota: v, hecho: chk.checked }); aviso("Nota guardada");
-          }, { disabled: !puedeMarcar }), "full"));
+          }, { disabled: !puedeMarcar, soloAlSalir: true }), "full"));
         ul.appendChild(h("li", {},
           h("label", {}, chk, h("span", { text: t.texto }),
             h("button", {
@@ -559,9 +559,9 @@ export function vistaGraduacion(ctx) {
             h("td", { class: "num", text: prog.examen.reduce((a, e) => a + e.peso, 0) + "%" }),
             h("td", { class: "num mono" }, h("b", { text: m.examenTotal.toFixed(1) })))]),
         h("div", { class: "form-grid sep" },
-          campo("Promedio de role plays (1 a 5)", entrada(juicio.rolePlays ?? "", (v) => guardarJuicio({ rolePlays: Number(v) }), { type: "number", step: "0.1", min: 0, max: 5, disabled: !puedeEditar })),
-          campo("Evaluación del gerente (1 a 5)", entrada(juicio.evalGerente ?? "", (v) => guardarJuicio({ evalGerente: Number(v) }), { type: "number", step: "0.1", min: 0, max: 5, disabled: !puedeEditar })),
-          campo("Comentario del dictamen", area(juicio.notas || "", (v) => guardarJuicio({ notas: v }), 3, { disabled: !puedeEditar }), "full"))),
+          campo("Promedio de role plays (1 a 5)", entrada(juicio.rolePlays ?? "", (v) => guardarJuicio({ rolePlays: Number(v) }), { type: "number", step: "0.1", min: 0, max: 5, disabled: !puedeEditar, soloAlSalir: true })),
+          campo("Evaluación del gerente (1 a 5)", entrada(juicio.evalGerente ?? "", (v) => guardarJuicio({ evalGerente: Number(v) }), { type: "number", step: "0.1", min: 0, max: 5, disabled: !puedeEditar, soloAlSalir: true })),
+          campo("Comentario del dictamen", area(juicio.notas || "", (v) => guardarJuicio({ notas: v }), 3, { disabled: !puedeEditar, soloAlSalir: true }), "full"))),
 
       panel("Primeros 90 días después de graduar",
         "La transición no termina con el dictamen: aquí se consolida o se pierde lo aprendido.",
@@ -971,7 +971,7 @@ function copiarDeOtro(ctx, guardar) {
       const campos = que === "plan" ? { plan: c.plan }
         : que === "metas" ? { kpis: c.kpis, criterios: c.criterios }
           : { plan: c.plan, grupos: c.grupos, competencias: c.competencias, kpis: c.kpis, criterios: c.criterios, plan_visitas: c.plan_visitas, etapas: c.etapas, riesgos: c.riesgos, examen: c.examen };
-      cerrarModal();
+      cerrarModalYa();
       await guardar(campos, "Programa copiado");
     })]);
 }

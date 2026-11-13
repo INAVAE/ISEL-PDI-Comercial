@@ -435,6 +435,12 @@ async function continuarArranque() {
   pintar();
 }
 
-auth.alCambiar((s) => { if (!s && estado.perfil) location.reload(); });
+/* Solo un cierre de sesión de verdad justifica recargar. Antes bastaba
+   cualquier evento con la sesión nula —un refresco de token que falla al
+   volver a la pestaña, que es justo lo que pasa al ir a copiar un dato de
+   otro programa— para recargar la página y tirar el formulario abierto. */
+auth.alCambiar((s, evt) => {
+  if (evt === "SIGNED_OUT" && estado.perfil) location.reload();
+});
 iniciarTema();
 arrancar();

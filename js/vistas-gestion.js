@@ -10,7 +10,7 @@ import {
 import { resumenColaborador } from "./metricas.js";
 import { clonarPlantilla } from "./plantilla.js";
 import {
-  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
+  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, cerrarModalYa, aviso, confirmar,
   lampara, barra, dinero, numero, pct, fecha, vacio, radar, barras, barrasH, lineas, color, cls, tarjeta,
   barraFiltros, opcionesDe, encabezadoOrdenable, ordenar, tarjetaConteo,
 } from "./ui.js";
@@ -317,13 +317,13 @@ async function formColaborador(ctx, existente) {
           const base = ctx.estado.plantillaGlobal && ctx.estado.plantillaGlobal.semanas
             ? ctx.estado.plantillaGlobal : clonarPlantilla();
           const nuevo = await dbCol.crear(f, base, ctx.estado.perfil.id);
-          cerrarModal(); aviso("Colaborador registrado con el plan completo");
+          cerrarModalYa(); aviso("Colaborador registrado con el plan completo");
           await ctx.refrescarTodo("colaboradores");
           if (nuevo && nuevo.id) ctx.elegirColaborador(nuevo.id);
         } else {
           const { id, plan, grupos, competencias, kpis, criterios, plan_visitas, etapas, riesgos, examen, juicio, creado_en, creado_por, actualizado_en, semana_actual, ...campos } = f;
           await dbCol.actualizar(existente.id, campos);
-          cerrarModal(); aviso("Cambios guardados");
+          cerrarModalYa(); aviso("Cambios guardados");
           ctx.refrescarTodo("colaboradores");
         }
       } catch (e) { aviso(e.message, "error"); }
@@ -494,13 +494,13 @@ function formUsuario(ctx, existente, alTerminar) {
       try {
         if (esNuevo) {
           const r = await dbUsuarios.crear(f);
-          cerrarModal();
+          cerrarModalYa();
           aviso(r && r.mensaje ? r.mensaje : "Usuario creado");
         } else {
           if ((f.nombre || "") !== (existente.nombre || ""))
             await dbUsuarios.cambiarNombre(existente.id, f.nombre);
           if (f.rol !== existente.rol) await dbUsuarios.cambiarRol(existente.id, f.rol);
-          cerrarModal(); aviso("Cambios guardados");
+          cerrarModalYa(); aviso("Cambios guardados");
         }
         alTerminar();
       } catch (e) { aviso(e.message, "error"); }
@@ -531,7 +531,7 @@ function formPassword(ctx, u, alTerminar) {
      boton("Asignar contraseña", async () => {
        try {
          await dbUsuarios.restablecer(u.id, campoClave.value, f.pedir_cambio);
-         cerrarModal(); aviso("Contraseña asignada"); alTerminar();
+         cerrarModalYa(); aviso("Contraseña asignada"); alTerminar();
        } catch (e) { aviso(e.message, "error"); }
      })]);
 }
@@ -603,7 +603,7 @@ function copiarDesdeColaborador(ctx) {
       };
       await dbPlantilla.guardar(nueva, ctx.estado.perfil.id);
       ctx.estado.plantillaGlobal = nueva;
-      cerrarModal(); aviso("Plantilla actualizada"); ctx.ir("plantilla");
+      cerrarModalYa(); aviso("Plantilla actualizada"); ctx.ir("plantilla");
     })]);
 }
 

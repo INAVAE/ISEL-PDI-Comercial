@@ -152,18 +152,40 @@ export function campo(label, control, ancho) {
   return h("label", { class: cls("campo", ancho === "full" && "campo-full") }, h("span", { text: label }), control);
 }
 
+/* Los campos avisan en cada tecla, no solo al perder el foco.
+   Con "change" a secas, lo que se estaba escribiendo no existía todavía en el
+   objeto del formulario: si el cuadro se cerraba por cualquier motivo, ese
+   campo se perdía aunque estuviera en pantalla. Se conserva "change" además
+   de "input" para que un cambio hecho por el navegador —autocompletar, los
+   botones de una casilla numérica— también entre.
+
+   opts.soloAlSalir es para los campos que NO viven en un formulario con botón
+   de guardar, sino que escriben al servidor por su cuenta en cuanto cambian.
+   Esos tienen que esperar a que la persona termine: avisar por tecla sería
+   una escritura y un repintado por carácter. */
 export function entrada(valor, onInput, opts = {}) {
   const el = h("input", { type: opts.type || "text", value: valor ?? "", placeholder: opts.placeholder || "", disabled: !!opts.disabled });
   if (opts.min !== undefined) el.min = opts.min;
   if (opts.max !== undefined) el.max = opts.max;
   if (opts.step !== undefined) el.step = opts.step;
-  el.addEventListener("change", () => onInput(opts.type === "number" ? Number(el.value) : el.value));
+  if (opts.maxlength !== undefined) el.maxLength = opts.maxlength;
+  const emitir = () => onInput(opts.type === "number" ? Number(el.value) : el.value);
+  if (!opts.soloAlSalir) {
+    el.addEventListener("input", () => {
+      /* Un número a medio escribir ("1.", "-") no es número: se deja pasar y
+         lo recoge el "change" del final. */
+      if (opts.type === "number" && !Number.isFinite(Number(el.value))) return;
+      emitir();
+    });
+  }
+  el.addEventListener("change", emitir);
   return el;
 }
 
 export function area(valor, onInput, filas = 3, opts = {}) {
   const el = h("textarea", { rows: filas, placeholder: opts.placeholder || "", disabled: !!opts.disabled });
   el.value = valor ?? "";
+  if (!opts.soloAlSalir) el.addEventListener("input", () => onInput(el.value));
   el.addEventListener("change", () => onInput(el.value));
   return el;
 }
@@ -334,22 +356,70 @@ export function tabla(encabezados, filas, opts = {}) {
 
 /* ---------------------------------------------------------------- MODAL --- */
 
+/* Un formulario a medio llenar no se tira sin preguntar. Antes, Escape, un
+   clic fuera del cuadro o el botón de cerrar lo descartaban en silencio, y
+   un Account Plan son veinte minutos de trabajo. */
+
 let modalActual = null;
+let modalSucio = false;
+let preguntando = false;
 
 export function modal(titulo, contenido, pie, ancho) {
-  cerrarModal();
+  cerrarModalYa();
   const caja = h("div", { class: cls("modal", ancho === "ancho" && "modal-ancho") },
-    h("header", { class: "modal-head" }, h("h3", { text: titulo }), boton("Cerrar", cerrarModal, "ghost")),
+    h("header", { class: "modal-head" }, h("h3", { text: titulo }), boton("Cerrar", () => cerrarModal(), "ghost")),
     h("div", { class: "modal-body" }, contenido, pie && h("div", { class: "modal-pie" }, ...pie)));
   const fondo = h("div", { class: "modal-bg", onclick: (e) => { if (e.target === fondo) cerrarModal(); } }, caja);
   document.body.appendChild(fondo);
   modalActual = fondo;
+  modalSucio = false;
+  preguntando = false;
+  /* Cualquier tecleo o selección dentro del cuadro lo da por tocado. Así no
+     hay que acordarse de declararlo formulario por formulario. */
+  caja.addEventListener("input", marcarSucio);
+  caja.addEventListener("change", marcarSucio);
   document.addEventListener("keydown", escModal);
+  window.addEventListener("beforeunload", avisarSalida);
   return fondo;
 }
+
+const marcarSucio = () => { modalSucio = true; };
 const escModal = (e) => { if (e.key === "Escape") cerrarModal(); };
+
+/* Cubre recargar, cerrar la pestaña y Ctrl+W o Ctrl+R: el navegador pregunta
+   antes de tirar la página con un formulario a medias. */
+const avisarSalida = (e) => {
+  if (!modalSucio) return;
+  e.preventDefault();
+  e.returnValue = "";
+};
+
+/* Cierre pedido por la persona: pregunta si hay algo escrito. */
 export function cerrarModal() {
-  if (modalActual) { modalActual.remove(); modalActual = null; document.removeEventListener("keydown", escModal); }
+  if (!modalActual) return;
+  if (!modalSucio) { cerrarModalYa(); return; }
+  if (preguntando) return;
+  preguntando = true;
+  const caja = modalActual.querySelector(".modal");
+  const tira = h("div", { class: "modal-descartar", role: "alertdialog" },
+    h("p", { text: "Escribiste cosas que todavía no se guardan. Si cierras ahora se pierden y hay que capturar el registro de nuevo." }),
+    h("div", { class: "acciones-fila" },
+      boton("Seguir editando", () => { tira.remove(); preguntando = false; }, "ghost"),
+      boton("Cerrar y descartar", () => cerrarModalYa(), "peligro")));
+  caja.appendChild(tira);
+  tira.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+
+/* Cierre sin preguntar. Lo usa el guardado, que ya conservó el trabajo, y la
+   apertura de un cuadro nuevo. */
+export function cerrarModalYa() {
+  if (!modalActual) return;
+  modalActual.remove();
+  modalActual = null;
+  modalSucio = false;
+  preguntando = false;
+  document.removeEventListener("keydown", escModal);
+  window.removeEventListener("beforeunload", avisarSalida);
 }
 
 export function aviso(texto, tipo = "ok") {
@@ -360,8 +430,8 @@ export function aviso(texto, tipo = "ok") {
 
 export function confirmar(texto, alAceptar) {
   modal("Confirmar", h("p", { class: "texto", text: texto }), [
-    boton("Cancelar", cerrarModal, "ghost"),
-    boton("Sí, continuar", () => { cerrarModal(); alAceptar(); }, "peligro"),
+    boton("Cancelar", () => cerrarModalYa(), "ghost"),
+    boton("Sí, continuar", () => { cerrarModalYa(); alAceptar(); }, "peligro"),
   ]);
 }
 

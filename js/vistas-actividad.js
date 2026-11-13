@@ -6,7 +6,7 @@
 import { visitas as dbVisitas, oportunidades as dbOpps, cuentas as dbCuentas, coaching as dbCoaching } from "./db.js";
 import { TIPOS_VISITA, MADUREZ } from "./plantilla.js";
 import {
-  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, aviso, confirmar,
+  h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, cerrarModalYa, aviso, confirmar,
   lampara, barra, dinero, numero, pct, fecha, vacio, barras, barrasH, color, cls, tarjeta, uid,
   barraFiltros, opcionesDe,
 } from "./ui.js";
@@ -142,7 +142,7 @@ function formVisita(ctx, v) {
       try {
         const { colaborador_id, ...resto } = f;
         await dbVisitas.guardar(f.id ? f : { ...f, colaborador_id: col.id });
-        cerrarModal(); aviso("Visita guardada"); ctx.refrescar();
+        cerrarModalYa(); aviso("Visita guardada"); ctx.refrescar();
       } catch (e) { aviso(e.message, "error"); }
     })] : [boton("Cerrar", cerrarModal, "ghost")], "ancho");
 }
@@ -286,7 +286,7 @@ function formOpp(ctx, o) {
     puede ? [boton("Cancelar", cerrarModal, "ghost"), boton("Guardar oportunidad", async () => {
       try {
         await dbOpps.guardar(f.id ? f : { ...f, colaborador_id: col.id });
-        cerrarModal(); aviso("Oportunidad guardada"); ctx.refrescar();
+        cerrarModalYa(); aviso("Oportunidad guardada"); ctx.refrescar();
       } catch (e) { aviso(e.message, "error"); }
     })] : [boton("Cerrar", cerrarModal, "ghost")], "ancho");
 }
@@ -422,7 +422,7 @@ function formCuenta(ctx, c) {
     puede ? [boton("Cancelar", cerrarModal, "ghost"), boton("Guardar Account Plan", async () => {
       try {
         await dbCuentas.guardar(f.id ? f : { ...f, colaborador_id: col.id });
-        cerrarModal(); aviso("Account Plan guardado"); ctx.refrescar();
+        cerrarModalYa(); aviso("Account Plan guardado"); ctx.refrescar();
       } catch (e) { aviso(e.message, "error"); }
     })] : [boton("Cerrar", cerrarModal, "ghost")], "ancho");
 }

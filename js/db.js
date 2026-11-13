@@ -41,7 +41,9 @@ export const auth = {
     return ok(await sb.auth.updateUser({ password }));
   },
   alCambiar(fn) {
-    sb.auth.onAuthStateChange((_evt, session) => fn(session));
+    /* Se pasa también el evento: no es lo mismo un cierre de sesión que un
+       refresco de token que vino nulo de paso. */
+    sb.auth.onAuthStateChange((evt, session) => fn(session, evt));
   },
 };
 
