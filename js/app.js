@@ -207,9 +207,14 @@ function cabecera(individual) {
   const selector = individual && (permisos.esMentor || permisos.esLector) && visibles.length
     ? h("div", { class: "mini" }, h("span", { text: "Colaborador" }),
       (() => {
+        /* Un mentor puede llevar su propio plan en paralelo, así que su
+           expediente aparece en la misma lista que los demás: se marca para
+           que no tenga que adivinar cuál es el suyo. */
         const s = h("select", {}, ...visibles.map((c) =>
           h("option", { value: c.id, selected: c.id === estado.colId },
-            c.nombre + (c.estado === "archivado" ? " (archivado)" : ""))));
+            c.nombre
+            + (c.user_id && c.user_id === estado.perfil.id ? " (tu propio plan)" : "")
+            + (c.estado === "archivado" ? " (archivado)" : ""))));
         s.addEventListener("change", () => elegirColaborador(s.value));
         return s;
       })())

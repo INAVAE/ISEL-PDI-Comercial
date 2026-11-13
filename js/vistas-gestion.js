@@ -289,7 +289,17 @@ async function formColaborador(ctx, existente) {
 
   const ps = ctx.estado.perfilesCache || [];
   const mentores = [{ id: "", nombre: "Sin asignar" }, ...ps.filter((p) => p.rol === "mentor" || p.rol === "admin").map((p) => ({ id: p.id, nombre: p.nombre || p.email }))];
-  const usuarios = [{ id: "", nombre: "Sin cuenta vinculada" }, ...ps.filter((p) => p.rol === "colaborador").map((p) => ({ id: p.id, nombre: (p.nombre || p.email) + " · " + p.email }))];
+  /* Cualquier cuenta con acceso puede estar en desarrollo, no solo las de rol
+     colaborador: un mentor también puede llevar su propio plan en paralelo, y
+     antes había que inventarle una segunda cuenta para lograrlo. Se excluye
+     solo lectura, que por definición no captura nada. Se muestra el rol para
+     que quien registra sepa a quién está vinculando. */
+  const usuarios = [{ id: "", nombre: "Sin cuenta vinculada" },
+    ...ps.filter((p) => p.activo !== false && ["colaborador", "mentor", "admin"].includes(p.rol))
+      .map((p) => ({
+        id: p.id,
+        nombre: `${p.nombre || p.email} · ${p.email}` + (p.rol === "colaborador" ? "" : ` · ${ETIQUETA_ROL[p.rol]}`),
+      }))];
 
   const cuerpo = h("div", {},
     h("div", { class: "form-grid" },
@@ -306,12 +316,21 @@ async function formColaborador(ctx, existente) {
       campo("Cuenta de acceso del colaborador", seleccion(f.user_id || "", usuarios, (v) => { f.user_id = v || null; })),
       campo("Notas", area(f.notas, set("notas"), 3, { placeholder: "Contexto, antecedentes, acuerdos previos" }), "full")),
     h("p", { class: "nota-form", text: "Si dejas vacío el término previsto, se calcula sumando una semana por cada semana del plan. Defínelo a mano cuando el programa se pause por vacaciones o incapacidad, para que la persona no aparezca atrasada." }),
-    h("p", { class: "nota-form", text: "La cuenta de acceso vincula a esta persona con un usuario del sistema para que entre y registre su propio avance. Si todavía no existe, créala primero en Usuarios y roles." }));
+    h("p", { class: "nota-form", text: "La cuenta de acceso vincula a esta persona con un usuario del sistema para que entre y registre su propio avance. Si todavía no existe, créala primero en Usuarios y roles." }),
+    h("p", { class: "nota-form", text: "Puedes vincular la cuenta de un mentor: llevará su propio plan de desarrollo con la misma cuenta con la que mentorea a los demás. Lo único que no se vale es que sea su propio mentor." }));
 
   modal(esNuevo ? "Registrar colaborador" : "Editar colaborador", cuerpo, [
     boton("Cancelar", cerrarModal, "ghost"),
     boton(esNuevo ? "Registrar y generar plan" : "Guardar cambios", async () => {
       if (!f.nombre.trim()) { aviso("El nombre es obligatorio", "error"); return; }
+      /* Ahora que un mentor puede estar en desarrollo, hay que cerrar la
+         puerta de al lado: nadie se mentorea a sí mismo. Si lo fuera, podría
+         fijarse sus propias metas, calificarse las competencias y validar su
+         propia evidencia, que es justo lo que el programa no permite. */
+      if (f.mentor_id && f.user_id && f.mentor_id === f.user_id) {
+        aviso("Esa persona no puede ser su propio mentor: asígnale otro", "error");
+        return;
+      }
       try {
         if (esNuevo) {
           const base = ctx.estado.plantillaGlobal && ctx.estado.plantillaGlobal.semanas
