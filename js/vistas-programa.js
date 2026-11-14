@@ -3,7 +3,8 @@
    y el editor de configuración del plan de cada colaborador.
    =========================================================================== */
 
-import { colaboradores as dbCol, avance as dbAvance, evaluaciones, kpiResultados } from "./db.js";
+import { colaboradores as dbCol, avance as dbAvance, evaluaciones, kpiResultados,
+  evidencias as dbEvidencias, SIN_DEPOSITO, LIMITE_ARCHIVO } from "./db.js";
 import { NIVELES, CORTES, MADUREZ, FUENTES_CRITERIO } from "./plantilla.js";
 import { clave } from "./metricas.js";
 import {
@@ -269,18 +270,23 @@ export function vistaRuta(ctx) {
             await ctx.refrescar();
           } catch (e) { aviso(e.message, "error"); chk.checked = !chk.checked; }
         });
+        const marca = h("span", { class: "clip-cuenta" });
+        const verEv = h("button", { class: "link-mini" });
+        const adjuntos = bloqueAdjuntos(ctx, col, s, t, registro, chk, puedeMarcar, marca, verEv);
         const detalle = h("div", { class: "check-detalle", style: { display: "none" } },
           campo("Evidencia entregada", entrada(registro.evidencia || "", async (v) => {
             await dbAvance.anotar(col.id, s.id, clave(s.id, t.id), { evidencia: v, hecho: chk.checked }); aviso("Evidencia guardada");
-          }, { disabled: !puedeMarcar, soloAlSalir: true, placeholder: "Liga, archivo o descripción" }), "full"),
+          }, { disabled: !puedeMarcar, soloAlSalir: true, placeholder: "Liga o descripción" }), "full"),
           campo("Nota", entrada(registro.nota || "", async (v) => {
             await dbAvance.anotar(col.id, s.id, clave(s.id, t.id), { nota: v, hecho: chk.checked }); aviso("Nota guardada");
-          }, { disabled: !puedeMarcar, soloAlSalir: true }), "full"));
+          }, { disabled: !puedeMarcar, soloAlSalir: true }), "full"),
+          adjuntos);
+        verEv.addEventListener("click", (e) => {
+          e.preventDefault();
+          detalle.style.display = detalle.style.display === "none" ? "" : "none";
+        });
         ul.appendChild(h("li", {},
-          h("label", {}, chk, h("span", { text: t.texto }),
-            h("button", {
-              class: "link-mini", onclick: (e) => { e.preventDefault(); detalle.style.display = detalle.style.display === "none" ? "" : "none"; },
-            }, registro.evidencia || registro.nota ? "Ver evidencia" : "Agregar evidencia")),
+          h("label", {}, chk, h("span", { text: t.texto }), marca, verEv),
           detalle));
       });
       cuerpo.appendChild(ul);
@@ -298,6 +304,144 @@ export function vistaRuta(ctx) {
 }
 
 const bloque = (titulo, texto) => texto ? h("div", {}, h("h5", { text: titulo }), h("p", { text: texto })) : null;
+
+/* ------------------------------------------------ ADJUNTOS DE EVIDENCIA ---
+   Una liga en un campo de texto se rompe en cuanto alguien mueve el archivo
+   de carpeta. Esto sube el archivo de verdad y lo deja colgado de la tarea.
+
+   Se repinta solo, sin tocar el resto de la vista: refrescar la ruta entera
+   cerraría la semana y el detalle que la persona tiene abiertos.
+   -------------------------------------------------------------------------- */
+
+const pesoLegible = (b) =>
+  b >= 1048576 ? (b / 1048576).toFixed(1) + " MB"
+    : b >= 1024 ? Math.round(b / 1024) + " KB"
+      : b + " B";
+
+function iconoClip() {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "13");
+  svg.setAttribute("height", "13");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  p.setAttribute("d", "M20.4 11.3 11.7 20a5 5 0 1 1-7.1-7.1l8.7-8.7a3.3 3.3 0 1 1 4.7 4.7l-8.7 8.7a1.7 1.7 0 0 1-2.4-2.4l8-8");
+  svg.appendChild(p);
+  return svg;
+}
+
+function bloqueAdjuntos(ctx, col, s, t, registro, chk, puedeMarcar, marca, verEv) {
+  const tareaId = clave(s.id, t.id);
+  /* Copia local: la lista se actualiza aquí mismo tras cada subida o borrado,
+     sin repintar la ruta. El renglón de la base manda, pero no hace falta
+     recargarlo para que la persona vea lo que acaba de subir. */
+  let archivos = [...(registro.archivos || [])];
+
+  const lista = h("div", { class: "adj-lista" });
+  const estado = h("span", { class: "tiny adj-estado" });
+
+  const guardar = async () => {
+    await dbAvance.anotar(col.id, s.id, tareaId, { archivos, hecho: chk.checked });
+    registro.archivos = archivos;
+  };
+
+  const abrir = async (a) => {
+    try {
+      const url = await dbEvidencias.urlFirmada(a.ruta);
+      window.open(url, "_blank", "noopener");
+    } catch (e) { aviso(mensajeArchivo(e), "error"); }
+  };
+
+  const quitar = (a) => confirmar(`¿Quitar "${a.nombre}"? El archivo se borra y no se puede recuperar.`, async () => {
+    try {
+      await dbEvidencias.borrar(a.ruta);
+      archivos = archivos.filter((x) => x.ruta !== a.ruta);
+      await guardar();
+      pintarLista();
+      aviso("Archivo quitado");
+    } catch (e) { aviso(mensajeArchivo(e), "error"); }
+  });
+
+  function pintarLista() {
+    /* La marca y el enlace junto al texto de la tarea se actualizan aquí: la
+       semana no se repinta al subir, así que si no, se quedarían atrás
+       diciendo "Agregar evidencia" con archivos ya subidos. */
+    if (verEv)
+      verEv.textContent = registro.evidencia || registro.nota || archivos.length
+        ? "Ver evidencia" : "Agregar evidencia";
+    if (marca) {
+      marca.replaceChildren();
+      if (archivos.length) {
+        marca.title = `${archivos.length} archivo${archivos.length === 1 ? "" : "s"} adjunto${archivos.length === 1 ? "" : "s"}`;
+        marca.append(iconoClip(), String(archivos.length));
+      } else {
+        marca.removeAttribute("title");
+      }
+    }
+    lista.replaceChildren();
+    if (!archivos.length) {
+      lista.appendChild(h("p", { class: "tiny adj-vacio", text: "Todavía no hay archivos adjuntos." }));
+      return;
+    }
+    archivos.forEach((a) => {
+      lista.appendChild(h("div", { class: "adj" },
+        h("button", { class: "adj-nombre", title: "Abrir el archivo", onclick: (e) => { e.preventDefault(); abrir(a); } },
+          iconoClip(), h("span", { text: a.nombre })),
+        h("span", { class: "tiny adj-peso", text: pesoLegible(a.bytes || 0) + (a.subido_en ? " · " + fecha(String(a.subido_en).slice(0, 10)) : "") }),
+        puedeMarcar
+          ? h("button", { class: "link-mini adj-quitar", onclick: (e) => { e.preventDefault(); quitar(a); } }, "Quitar")
+          : null));
+    });
+  }
+  pintarLista();
+
+  if (!puedeMarcar) return h("div", { class: "adjuntos" }, h("h5", { text: "Archivos de evidencia" }), lista);
+
+  const entradaArchivo = h("input", { type: "file", multiple: true, class: "adj-input" });
+  const btn = boton("Adjuntar archivo", () => entradaArchivo.click(), "ghost");
+
+  entradaArchivo.addEventListener("change", async () => {
+    const elegidos = [...entradaArchivo.files];
+    if (!elegidos.length) return;
+    btn.disabled = true;
+    let subidos = 0;
+    for (const [i, f] of elegidos.entries()) {
+      estado.textContent = `Subiendo ${i + 1} de ${elegidos.length}: ${f.name}…`;
+      try {
+        archivos.push(await dbEvidencias.subir(col.id, tareaId, f));
+        subidos++;
+      } catch (e) {
+        aviso(mensajeArchivo(e), "error");
+        break;
+      }
+    }
+    if (subidos) {
+      try {
+        await guardar();
+        pintarLista();
+        aviso(subidos === 1 ? "Archivo adjuntado" : `${subidos} archivos adjuntados`);
+      } catch (e) { aviso(mensajeArchivo(e), "error"); }
+    }
+    estado.textContent = "";
+    btn.disabled = false;
+    /* Se limpia para que volver a elegir el mismo archivo dispare el cambio */
+    entradaArchivo.value = "";
+  });
+
+  return h("div", { class: "adjuntos" },
+    h("h5", { text: "Archivos de evidencia" }),
+    lista,
+    h("div", { class: "adj-acciones" }, entradaArchivo, btn, estado),
+    h("p", { class: "tiny adj-ayuda", text: `Cualquier tipo de archivo, hasta ${Math.round(LIMITE_ARCHIVO / 1048576)} MB cada uno. Una foto del tablero o el PDF de la cotización valen más que una liga que se rompe al mover la carpeta.` }));
+}
+
+const mensajeArchivo = (e) => e.message === SIN_DEPOSITO
+  ? "El guardado de archivos todavía no está instalado en Supabase. Avísale al administrador."
+  : e.message;
 
 /* ======================================================= COMPETENCIAS ===== */
 

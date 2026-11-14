@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 import { clonarPlantilla } from "./plantilla.js";
+import { rutaEvidencia } from "./rutas.js";
 
 /* El correo de restablecimiento regresa con el token en el fragmento de la
    URL. Hay que leerlo ANTES de crear el cliente: al arrancar, Supabase lo
@@ -303,5 +304,58 @@ export const sugerencias = {
         .select("id", { count: "exact", head: true }).eq("estado", "nueva");
       return error ? 0 : (count || 0);
     } catch { return 0; }
+  },
+};
+
+/* ------------------------------------------------- EVIDENCIA EN ARCHIVO ---
+   Los archivos viven en un depósito privado de Supabase. La primera carpeta
+   de la ruta es el id del colaborador, y de ahí cuelga todo: así las
+   políticas del depósito reusan los mismos permisos que el resto de la
+   herramienta, sin inventar reglas nuevas.
+
+       <colaborador_id>/<tarea_id>/<momento>-<nombre>
+
+   La lista de archivos de cada tarea se guarda en la columna "archivos" del
+   renglón de avance. No se guarda una liga: una liga firmada caduca, y la
+   ruta no.
+   -------------------------------------------------------------------------- */
+
+export const DEPOSITO = "pdc-evidencias";
+export const LIMITE_ARCHIVO = 10 * 1024 * 1024;
+export const SIN_DEPOSITO = "SIN_DEPOSITO";
+
+const faltaDeposito = (e) => {
+  const m = (e && e.message) || "";
+  return /bucket not found|does not exist|404/i.test(m);
+};
+
+export const evidencias = {
+  async subir(colaboradorId, tareaId, archivo) {
+    if (archivo.size > LIMITE_ARCHIVO)
+      throw new Error(`"${archivo.name}" pesa ${(archivo.size / 1048576).toFixed(1)} MB y el límite por archivo son 10 MB.`);
+    const ruta = rutaEvidencia(colaboradorId, tareaId, archivo.name);
+    const { error } = await sb.storage.from(DEPOSITO)
+      .upload(ruta, archivo, { cacheControl: "3600", upsert: false });
+    if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
+    return {
+      ruta,
+      nombre: archivo.name,
+      tipo: archivo.type || "",
+      bytes: archivo.size,
+      subido_en: new Date().toISOString(),
+    };
+  },
+
+  /* El depósito es privado: para abrir un archivo hace falta una liga
+     firmada, que vale unos minutos y luego deja de servir. */
+  async urlFirmada(ruta, segundos = 300) {
+    const { data, error } = await sb.storage.from(DEPOSITO).createSignedUrl(ruta, segundos);
+    if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
+    return data.signedUrl;
+  },
+
+  async borrar(ruta) {
+    const { error } = await sb.storage.from(DEPOSITO).remove([ruta]);
+    if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
   },
 };
