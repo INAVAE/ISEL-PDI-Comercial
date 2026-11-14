@@ -17,13 +17,13 @@ los permite, y de paso deja el historial de cada envío a la vista.
 | --- | --- |
 | `resumen.mjs` | Decide qué dice el correo. No depende de nada externo, por eso se puede probar. |
 | `enviar.mjs` | Trae los datos de Supabase y los manda. |
+| `prueba.mjs` | Comprueba el resumen contra expedientes reales exportados. |
 
 Las lecturas van por `fetch` contra la API REST, sin `supabase-js`: son tres
 consultas sin sesión ni tiempo real, y esa librería arrastra un cliente de
 realtime que exige WebSocket nativo —en Node 20 tumbaba la corrida antes de
 leer un solo renglón—. `nodemailer` se carga solo cuando de verdad se va a
 mandar algo, así que el modo prueba corre sin ninguna dependencia.
-| `prueba.mjs` | Comprueba el resumen contra expedientes reales exportados. |
 
 El resumen reutiliza `js/metricas.js`, el mismo cálculo que usa la pantalla.
 Con una copia, a la primera corrección el correo y el panel dirían cosas
