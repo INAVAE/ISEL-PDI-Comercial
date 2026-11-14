@@ -1,0 +1,54 @@
+name: Recordatorios del plan de desarrollo
+
+# Lunes y jueves a las 7:35 de la mañana, hora de Ciudad de México (UTC-6,
+# sin horario de verano desde 2022), que son las 13:35 UTC.
+#
+# El minuto 35 es a propósito: a la hora en punto GitHub tiene su mayor
+# carga y las tareas programadas se retrasan más. Aun así, GitHub no
+# garantiza la hora exacta; puede correr algunos minutos después.
+on:
+  schedule:
+    - cron: "35 13 * * 1,4"
+  # Para probar a mano desde la pestaña Actions del repositorio
+  workflow_dispatch:
+    inputs:
+      solo_prueba:
+        description: "Solo mostrar a quién le tocaría, sin mandar nada"
+        type: boolean
+        default: true
+      solo_a:
+        description: "Mandar TODOS los correos a esta dirección (para probar)"
+        type: string
+        default: ""
+
+# Si una corrida se empalma con otra, que no se dupliquen los correos
+concurrency:
+  group: recordatorios
+  cancel-in-progress: false
+
+jobs:
+  enviar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar lo que necesita el script
+        run: npm install --no-save @supabase/supabase-js@2 nodemailer@6
+
+      - name: Enviar
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          APP_URL: ${{ vars.APP_URL }}
+          # En la corrida programada siempre se manda de verdad; el modo
+          # prueba solo existe cuando se dispara a mano.
+          SOLO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.solo_prueba && '1' || '' }}
+          SOLO_A: ${{ github.event_name == 'workflow_dispatch' && inputs.solo_a || '' }}
+        run: node herramientas/recordatorios/enviar.mjs

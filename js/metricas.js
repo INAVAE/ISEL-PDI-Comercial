@@ -172,7 +172,9 @@ const plural = (n, p) => (Math.abs(n) === 1 ? p : p + "s");
 /* dd/mm/aaaa, el mismo formato que usa el resto de la aplicación */
 const fmt = (f) => `${String(f.getDate()).padStart(2, "0")}/${String(f.getMonth() + 1).padStart(2, "0")}/${f.getFullYear()}`;
 
-export function metricas(col, exp) {
+/* hoy se puede fijar para poder probar con una fecha concreta; la
+   aplicación no lo pasa y usa la de hoy. */
+export function metricas(col, exp, hoy = new Date()) {
   const prog = programa(col);
   const evals = indexEvals(exp.evals);
   const avance = exp.avance || [];
@@ -276,7 +278,7 @@ export function metricas(col, exp) {
     prog, evals, nivel, promedioGrupo, scoreCorte, cortesConDatos, ultimoCorte, score,
     criticasBajas, criticasSinEvaluar,
     tareasTotales, tareasHechas, avanceTareas: pctSeguro(tareasHechas, tareasTotales), tareaHecha: (s, t) => hechas.has(clave(s, t)),
-    cal: calendario(col, prog, hechasPorSemanaDe(prog, hechas), tareasTotales),
+    cal: calendario(col, prog, hechasPorSemanaDe(prog, hechas), tareasTotales, hoy),
     visitas, visitasSolo, visitasNuevas,
     opps, abiertas, pipeline, pipelineCal, ponderado, ganadas, ventas, tasaCierre, creadas, sinProxima,
     cuentas, planesAprobados,

@@ -1,0 +1,6 @@
+{
+  "name": "isel-pdi-comercial",
+  "private": true,
+  "type": "module",
+  "description": "La página no tiene compilación ni dependencias: se sirve tal cual. Este archivo existe solo para que Node trate los módulos de js/ como ES modules y el script de recordatorios pueda reutilizar el mismo cálculo que usa la aplicación, en vez de una copia que se desincroniza."
+}
