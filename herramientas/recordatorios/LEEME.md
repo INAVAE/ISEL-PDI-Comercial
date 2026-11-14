@@ -1,8 +1,8 @@
 # Recordatorios por correo
 
-Salen dos correos: a cada persona en desarrollo, el resumen de su semana —lo
-atrasado, lo que toca ahora y lo que lleva hecho—; y a quien solo da
-seguimiento, el panorama del equipo. Corre desde GitHub Actions
+A cada persona en desarrollo le llega el resumen de su semana —lo atrasado,
+lo que toca ahora y lo que lleva hecho—; y a quien da seguimiento, el
+panorama de las personas que le corresponden. Corre desde GitHub Actions
 (`.github/workflows/recordatorios.yml`) y sale desde la cuenta de Gmail de
 ISEL.
 
@@ -55,6 +55,38 @@ al revés:
 La razón: al dar de alta a alguien nuevo nadie tiene que acordarse de
 encenderle el correo, y a la vez no se le manda a toda la plantilla un
 panorama que nadie pidió.
+
+### Hasta dónde ve quien recibe el panorama
+
+La columna `alcance` del mismo renglón:
+
+| `alcance` | Ve a | Para quién |
+| --- | --- | --- |
+| `todo` | todas las personas en desarrollo | la dirección, un rol de solo lectura |
+| `propios` | solo los colaboradores con su `mentor_id` | un mentor |
+
+`propios` se resuelve contra el `mentor_id` de cada ficha, que es la misma
+asignación que muestra la aplicación: no hay una segunda lista de carteras
+que pudiera quedar desfasada.
+
+El default de la columna es `todo`, porque es lo que ya recibían los
+marcados antes de que existiera. Pero la pantalla, al encender a alguien
+que tiene gente a su cargo, guarda `propios`: enseñarle a un mentor de
+entrada el avance de gente que no le toca no es un default razonable.
+
+Un `propios` sin nadie asignado no genera correo. Una tabla vacía no le dice
+nada a nadie y hace parecer que el programa está roto.
+
+### Quien es mentor y colaborador a la vez
+
+Recibe **un solo correo**: su plan arriba y su cartera abajo. Por eso
+`enviar.mjs` calcula todos los resúmenes antes de mandar nada —hay que saber
+quién es además observador para armarle el correo— y por eso el panorama
+está partido en `bloqueEquipo()`, que se usa suelto y empotrado.
+
+Su cartera entra al asunto solo si hay alguien con atraso. Si todos van al
+día, el dato está adentro y no tiene por qué quitarle espacio a lo suyo en
+la lista del correo.
 
 ## Por qué no corre en Supabase
 

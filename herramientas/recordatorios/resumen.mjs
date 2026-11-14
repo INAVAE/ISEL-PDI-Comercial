@@ -96,10 +96,25 @@ const recuadro = (colorFranja, fondo, contenido) =>
      </tr>
    </table>`;
 
-export function armarCorreo(col, r, appUrl = "") {
+/* `cartera` es el bloque que devuelve bloqueEquipo(), y solo lo lleva quien
+   además de su plan acompaña a otras personas. Va aquí dentro y no en un
+   correo aparte porque si no, un mentor que también está en desarrollo
+   recibiría dos o tres correos el mismo minuto y acabaría sin leer ninguno. */
+export function armarCorreo(col, r, appUrl = "", cartera = null) {
   const { cal, vencidas, nPendientes, estaSemana, hechasTotales, totales } = r;
   const color = COLOR[cal.estado] || COLOR.off;
   const lista = (xs) => xs.map((t) => `<li style="margin:0 0 5px">${esc(t)}</li>`).join("");
+
+  const bloqueCartera = cartera && cartera.total
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid #E6E7E2;padding-top:18px;font-family:${FUENTE}">
+            <h2 style="margin:0 0 4px;font-size:15px;color:#22303B;font-family:${FUENTE}">Tu cartera</h2>
+            <p style="margin:0 0 12px;font-size:13px;color:#63707C;font-family:${FUENTE}">Cómo van las personas que acompañas.</p>
+            ${cartera.html}
+            <div style="height:8px;line-height:8px;font-size:0">&nbsp;</div>
+          </td></tr>
+        </table>`
+    : "";
 
   const bloqueVencidas = nPendientes
     ? `<h2 style="margin:0 0 4px;font-size:15px;color:#B3261E;font-family:${FUENTE}">Atrasado · ${nPendientes} ${nPendientes === 1 ? "tarea" : "tareas"}</h2>
@@ -168,6 +183,8 @@ export function armarCorreo(col, r, appUrl = "") {
           </td></tr>
         </table>
 
+        ${bloqueCartera}
+
         ${boton}
 
         <p style="margin:22px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
@@ -204,6 +221,7 @@ export function armarCorreo(col, r, appUrl = "") {
     ...(estaSemana ? estaSemana.faltan.map((t) => `    - ${t}`) : []),
     "",
     `Llevas ${hechasTotales} de ${totales} tareas del programa.`,
+    ...(bloqueCartera ? ["", "TU CARTERA", cartera.texto] : []),
     appUrl ? `\n${appUrl}` : "",
   ].join("\n");
 
@@ -213,39 +231,60 @@ export function armarCorreo(col, r, appUrl = "") {
   const faltanHoy = estaSemana ? estaSemana.faltan.length : 0;
   /* "Al día" solo cuando no falta NADA. Decirlo con tareas de esta semana sin
      marcar sonaba a que ya no había que hacer nada. */
-  const asunto = nPendientes
+  const propio = nPendientes
     ? `Tu plan: ${nPendientes} ${nPendientes === 1 ? "tarea atrasada" : "tareas atrasadas"} · semana ${nSem}`
     : faltanHoy
       ? `Tu plan: ${faltanHoy} ${faltanHoy === 1 ? "tarea" : "tareas"} de esta semana · semana ${nSem}`
       : `Tu plan al día · semana ${nSem}`;
 
+  /* La cartera solo entra al asunto cuando hay algo que hacer con ella. Si
+     todos van al día, el dato está adentro y no tiene por qué robarle
+     espacio a lo propio en la lista del correo. */
+  const asunto = cartera && cartera.conAtraso
+    ? `${propio} · cartera: ${cartera.conAtraso} con atraso`
+    : propio;
+
   return { asunto, html, texto };
 }
 
-/* ------------------------------------------------- panorama del equipo --- */
+/* ------------------------------------------------ panorama de personas --- */
 
-/* El segundo correo. Va a quien observa el programa sin llevar un plan
-   propio: la dirección, un rol de solo lectura. No le sirve «tus tareas»
-   porque no tiene; le sirve ver de un golpe quién va bien y quién no.
-   Es informativo y no pide nada: no trae botón de marcar ni reclamos. */
+/* El segundo correo. Va a quien da seguimiento al programa sin que las tareas
+   sean suyas, y por eso no le sirve «tus pendientes»: le sirve ver de un
+   golpe quién va bien y quién no.
+
+   Tiene dos alcances, y la diferencia no es cosmética:
+
+     todo     → todas las personas en desarrollo. Para la dirección o un rol
+                de solo lectura.
+     propios  → solo la cartera de un mentor. Enseñarle a un mentor el avance
+                de gente que no le toca es ruido, y además es información que
+                no le corresponde.
+
+   Se arma en dos piezas porque se usa de dos maneras: suelto, como correo
+   propio, y empotrado debajo del plan de quien es mentor y colaborador a la
+   vez, para que no reciba dos correos el mismo minuto. */
 
 const SEVERIDAD = { run: 0, off: 1, signal: 2, fault: 3 };
 
-export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
-  /* Lo malo arriba. Un panorama ordenado por nombre obliga a leerlo
-     completo para encontrar lo que hay que atender. */
+const fechaLarga = (hoy) => new Intl.DateTimeFormat("es-MX", {
+  weekday: "long", day: "numeric", month: "long", timeZone: "America/Mexico_City",
+}).format(hoy);
+
+/* La tabla y las cifras, sin envoltura de correo: esto es lo que se reutiliza. */
+export function bloqueEquipo(registros, opciones = {}) {
+  const propios = opciones.propios === true;
+
+  /* Lo malo arriba. Ordenado por nombre obliga a leerlo completo para
+     encontrar lo que hay que atender. */
   const filas = registros.slice().sort((a, b) =>
     b.r.nPendientes - a.r.nPendientes ||
     (SEVERIDAD[b.r.cal.estado] || 0) - (SEVERIDAD[a.r.cal.estado] || 0) ||
     String(a.col.nombre).localeCompare(String(b.col.nombre), "es"));
 
-  const conAtraso = filas.filter((f) => f.r.nPendientes > 0).length;
   const total = filas.length;
+  const conAtraso = filas.filter((f) => f.r.nPendientes > 0).length;
   const atrasoTotal = filas.reduce((a, f) => a + f.r.nPendientes, 0);
-
-  const fechaLarga = new Intl.DateTimeFormat("es-MX", {
-    weekday: "long", day: "numeric", month: "long", timeZone: "America/Mexico_City",
-  }).format(hoy);
 
   const celda = (contenido, extra = "") =>
     `<td style="padding:9px 10px;border-bottom:1px solid #E6E7E2;font-size:13px;color:#22303B;font-family:${FUENTE};${extra}">${contenido}</td>`;
@@ -268,40 +307,18 @@ export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
     </tr>`;
   }).join("");
 
+  const quienes = propios ? "en tu cartera" : "en desarrollo";
   const titular = total === 0
-    ? "No hay nadie en desarrollo ahora mismo."
+    ? (propios ? "No tienes a nadie asignado ahora mismo." : "No hay nadie en desarrollo ahora mismo.")
     : conAtraso === 0
-      ? `Las ${total === 1 ? "única persona" : `${total} personas`} en desarrollo están al día con las semanas que ya pasaron.`
+      ? (total === 1
+        ? `La persona ${quienes} está al día con las semanas que ya pasaron.`
+        : `Las ${total} personas ${quienes} están al día con las semanas que ya pasaron.`)
       : `${conAtraso} de ${total} ${conAtraso === 1 ? "arrastra" : "arrastran"} tareas de semanas anteriores: `
         + `${atrasoTotal} en total.`;
 
-  const html = `<!doctype html>
-<html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="X-UA-Compatible" content="IE=edge">
-<title>Panorama del plan de desarrollo</title>
-<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
-</head>
-<body style="margin:0;padding:0;background-color:#E6E7E2;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#E6E7E2" style="background-color:#E6E7E2">
-  <tr><td align="center" style="padding:28px 16px">
-
-    <!--[if mso]><table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-    <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"
-           style="width:100%;max-width:680px;border-collapse:collapse">
-      <tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D7D2;padding:26px 24px;font-family:${FUENTE}">
-
-        <p style="margin:0 0 2px;font-size:11px;color:#63707C;letter-spacing:1px;text-transform:uppercase;font-family:${FUENTE}">ISEL · Plan de desarrollo comercial</p>
-        <h1 style="margin:0 0 4px;font-size:21px;color:#22303B;font-family:${FUENTE}">Panorama del equipo</h1>
-        <p style="margin:0 0 18px;font-size:12px;color:#63707C;font-family:${FUENTE}">${esc(fechaLarga)}</p>
-
-        ${recuadro(conAtraso ? COLOR.signal : COLOR.run, "#F4F5F2",
-    `<div style="font-size:14px;color:#22303B;font-family:${FUENTE}">${esc(titular)}</div>`)}
-        <div style="height:10px;line-height:10px;font-size:0">&nbsp;</div>
-
-        ${total ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
+  const tabla = total
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
           <tr>
             ${encabezado("Persona")}
             ${encabezado("Semana")}
@@ -314,7 +331,67 @@ export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
         <p style="margin:14px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
           <b>Atrasado</b> son tareas de semanas que ya pasaron y siguen sin marcar; no desaparecen al avanzar.
           <b>Esta semana</b> es lo que falta de la semana en curso, que todavía está a tiempo.
-        </p>` : ""}
+        </p>`
+    : "";
+
+  const aviso = recuadro(conAtraso ? COLOR.signal : COLOR.run, "#F4F5F2",
+    `<div style="font-size:14px;color:#22303B;font-family:${FUENTE}">${esc(titular)}</div>`);
+
+  const texto = [
+    titular,
+    "",
+    ...filas.map(({ col, r }) => {
+      const faltanHoy = r.estaSemana ? r.estaSemana.faltan.length : 0;
+      return `  ${col.nombre}: semana ${r.estaSemana ? r.estaSemana.n : "—"} de ${r.semanas}`
+        + ` · atrasado ${r.nPendientes} · esta semana faltan ${faltanHoy}`
+        + ` · avance ${r.hechasTotales}/${r.totales} · ${r.cal.veredicto || ""}`;
+    }),
+  ].join("\n");
+
+  return {
+    propios, total, conAtraso, atrasoTotal, titular,
+    titulo: propios ? "Tu cartera" : "Panorama del equipo",
+    aviso, tabla, texto,
+    html: `${aviso}
+        <div style="height:10px;line-height:10px;font-size:0">&nbsp;</div>
+        ${tabla}`,
+  };
+}
+
+/* El panorama como correo propio */
+export function armarPanorama(registros, appUrl = "", opciones = {}) {
+  const b = bloqueEquipo(registros, opciones);
+  const dia = fechaLarga(opciones.hoy || new Date());
+
+  const pie = b.propios
+    ? "Este correo es informativo y llega a quien acompaña el desarrollo de estas personas. "
+      + "Cada una recibe por su lado el detalle de sus propias tareas."
+    : "Este correo es informativo: llega a quien da seguimiento al programa. "
+      + "Cada persona en desarrollo recibe por su lado el detalle de sus propias tareas.";
+
+  const html = `<!doctype html>
+<html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>${esc(b.titulo)}</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#E6E7E2;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#E6E7E2" style="background-color:#E6E7E2">
+  <tr><td align="center" style="padding:28px 16px">
+
+    <!--[if mso]><table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"
+           style="width:100%;max-width:680px;border-collapse:collapse">
+      <tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D7D2;padding:26px 24px;font-family:${FUENTE}">
+
+        <p style="margin:0 0 2px;font-size:11px;color:#63707C;letter-spacing:1px;text-transform:uppercase;font-family:${FUENTE}">ISEL · Plan de desarrollo comercial</p>
+        <h1 style="margin:0 0 4px;font-size:21px;color:#22303B;font-family:${FUENTE}">${esc(b.titulo)}</h1>
+        <p style="margin:0 0 18px;font-size:12px;color:#63707C;font-family:${FUENTE}">${esc(dia)}</p>
+
+        ${b.html}
 
         ${appUrl ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 4px">
              <tr><td bgcolor="#22303B" style="background:#22303B;padding:11px 20px">
@@ -323,8 +400,7 @@ export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
            </table>` : ""}
 
         <p style="margin:22px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
-          Este correo es informativo: llega a quien da seguimiento al programa.
-          Cada persona en desarrollo recibe por su lado el detalle de sus propias tareas.
+          ${esc(pie)}
         </p>
 
       </td></tr>
@@ -341,27 +417,17 @@ export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
 </table>
 </body></html>`;
 
-  const texto = [
-    "PANORAMA DEL EQUIPO",
-    fechaLarga,
-    "",
-    titular,
-    "",
-    ...filas.map(({ col, r }) => {
-      const faltanHoy = r.estaSemana ? r.estaSemana.faltan.length : 0;
-      return `  ${col.nombre}: semana ${r.estaSemana ? r.estaSemana.n : "—"} de ${r.semanas}`
-        + ` · atrasado ${r.nPendientes} · esta semana faltan ${faltanHoy}`
-        + ` · avance ${r.hechasTotales}/${r.totales} · ${r.cal.veredicto || ""}`;
-    }),
-    "",
-    appUrl ? appUrl : "",
-  ].join("\n");
+  const texto = [b.titulo.toUpperCase(), dia, "", b.texto, "", appUrl || ""].join("\n");
 
-  const asunto = total === 0
-    ? "Panorama del equipo: nadie en desarrollo"
-    : conAtraso
-      ? `Panorama: ${conAtraso} de ${total} con tareas atrasadas`
-      : `Panorama: los ${total} al día`;
+  const asunto = b.total === 0
+    ? (b.propios ? "Tu cartera: nadie asignado" : "Panorama del equipo: nadie en desarrollo")
+    : b.propios
+      ? (b.conAtraso
+        ? `Tu cartera: ${b.conAtraso} de ${b.total} con tareas atrasadas`
+        : `Tu cartera: ${b.total === 1 ? "al día" : `los ${b.total} al día`}`)
+      : (b.conAtraso
+        ? `Panorama: ${b.conAtraso} de ${b.total} con tareas atrasadas`
+        : `Panorama: los ${b.total} al día`);
 
   return { asunto, html, texto };
 }

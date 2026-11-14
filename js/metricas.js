@@ -154,7 +154,9 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
     estadoPlazo, veredictoPlazo, estadoTareas, estado, veredicto,
     detalle: terminado
       ? `El plazo terminó el ${fmt(fin)}.`
-      : `Semana ${esperada} según el calendario · quedan ${habilesRestantes} días hábiles`,
+      : `Semana ${esperada} según el calendario · ${habilesRestantes === 1
+        ? "queda 1 día hábil"
+        : `quedan ${habilesRestantes} días hábiles`}`,
   };
 }
 

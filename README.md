@@ -182,10 +182,12 @@ campo, etapas del embudo, componentes del examen y riesgos.
 contraseña y retiro de acceso, con el último ingreso de cada quien.
 
 **Recordatorios** (administrador). Qué días y a qué hora salen los correos automáticos, y quién
-los recibe. Son dos correos distintos: cada persona en desarrollo recibe el resumen de su plan
-—lo atrasado, lo de esta semana y lo que lleva hecho—, y quien solo da seguimiento puede recibir
-el panorama del equipo. Un colaborador nuevo queda incluido sin hacer nada; al panorama no se
-suscribe nadie hasta que se le marque. Los detalles de cómo corre están en
+los recibe. Cada persona en desarrollo recibe el resumen de su plan —lo atrasado, lo de esta
+semana y lo que lleva hecho—, y quien da seguimiento puede recibir además el panorama de otras
+personas: un mentor, el de su cartera; la dirección o un rol de solo lectura, el de todo el
+equipo. A quien es las dos cosas le llega todo en un mismo correo, con su plan arriba y su
+cartera abajo. Un colaborador nuevo queda incluido sin hacer nada; al panorama no se suscribe
+nadie hasta que se le marque. Los detalles de cómo corre están en
 `herramientas/recordatorios/LEEME.md`.
 
 ### Filtros

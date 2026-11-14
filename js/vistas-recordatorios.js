@@ -61,21 +61,53 @@ export function vistaRecordatorios(ctx) {
     const d = destinos.find((x) => x.perfil_id === id);
     return d ? d.recibe : false;         // sin renglón, no recibe
   };
+  const alcanceDe = (id) => {
+    const d = destinos.find((x) => x.perfil_id === id);
+    return (d && d.alcance) || "todo";
+  };
 
-  const marcar = async (tipo, id, recibe, chk) => {
-    chk.disabled = true;
+  /* Cuántas personas en desarrollo tiene asignadas, con la misma asignación
+     que muestra el resto de la aplicación: el mentor_id de cada ficha. */
+  const carteraDe = (perfilId) => (ctx.estado.colaboradores || [])
+    .filter((c) => c.estado === "activo" && c.mentor_id === perfilId);
+
+  const guardarDestino = async (tipo, id, campos, control) => {
+    control.disabled = true;
     try {
-      await dbRec.fijar(tipo, id, recibe);
+      await dbRec.fijar(tipo, id, campos);
       const campo = tipo === "colaborador" ? "colaborador_id" : "perfil_id";
       const previo = destinos.find((x) => x[campo] === id);
-      if (previo) previo.recibe = recibe;
-      else destinos.push({ [campo]: id, recibe });
-      aviso(recibe ? "Empezará a recibir los correos" : "Ya no recibirá los correos");
+      if (previo) Object.assign(previo, campos);
+      else destinos.push({ [campo]: id, ...campos });
+      return true;
     } catch (e) {
-      chk.checked = !recibe;             // que la casilla no mienta
       aviso(mensajeRecordatorios(e), "error");
+      return false;
     } finally {
-      chk.disabled = false;
+      control.disabled = false;
+    }
+  };
+
+  const marcar = async (tipo, id, recibe, chk) => {
+    /* Al encender un perfil se guarda también su alcance. Si es la primera
+       vez y tiene gente a su cargo, arranca en «solo los suyos»: el default
+       de la tabla es «todo» porque es lo que recibían los ya marcados, pero
+       encenderle a un mentor el equipo entero sería enseñarle de entrada el
+       avance de gente que no le toca. */
+    const existente = destinos.find((x) => x.perfil_id === id);
+    const campos = tipo === "perfil"
+      ? {
+        recibe,
+        alcance: existente
+          ? (existente.alcance || "todo")
+          : (carteraDe(id).length ? "propios" : "todo"),
+      }
+      : { recibe };
+    if (await guardarDestino(tipo, id, campos, chk)) {
+      aviso(recibe ? "Empezará a recibir los correos" : "Ya no recibirá los correos");
+      if (tipo === "perfil") pintar();   // aparece o desaparece el alcance
+    } else {
+      chk.checked = !recibe;             // que la casilla no mienta
     }
   };
 
@@ -207,19 +239,55 @@ export function vistaRecordatorios(ctx) {
   const bloqueObservadores = () => {
     const cuentas = perfiles.filter((p) => p.activo !== false);
 
-    const filas = cuentas.map((p) => h("tr", {},
-      h("td", {}, h("b", { text: p.nombre || "Sin nombre" })),
-      h("td", {}, etiquetaRol(p.rol)),
-      h("td", { class: "gris mono", text: p.email || "—" }),
-      h("td", {}, p.email
-        ? casilla("perfil", p.id, recibePerfil(p.id), "Recibe")
-        : h("span", { class: "gris", text: "Sin correo" }))));
+    const filas = cuentas.map((p) => {
+      const cartera = carteraDe(p.id);
+      const recibe = recibePerfil(p.id);
+      const alcance = alcanceDe(p.id);
 
-    return panel("Quién recibe el panorama del equipo",
-      "Un correo informativo con el estado de todas las personas en desarrollo, "
-      + "para quien da seguimiento sin llevar un plan propio. Nadie lo recibe hasta que se marque aquí. "
-      + "Si además lleva un plan, recibirá los dos correos.",
-      tabla(["Persona", "Rol", "Correo", "Panorama"], filas));
+      /* El selector de alcance solo tiene sentido para quien tiene gente a
+         su cargo: a los demás, «solo los suyos» les mandaría una tabla
+         vacía. A ellos se les dice de una vez a quién verán. */
+      const quienVe = !recibe
+        ? h("span", { class: "gris", text: "—" })
+        : cartera.length
+          ? (() => {
+            const sel = seleccion(alcance, [
+              { id: "propios", nombre: `Solo los suyos (${cartera.length})` },
+              { id: "todo", nombre: "Todo el equipo" },
+            ], async (v) => {
+              if (await guardarDestino("perfil", p.id, { recibe: true, alcance: v }, sel))
+                aviso(v === "propios" ? "Verá solo su cartera" : "Verá a todo el equipo");
+              pintar();
+            });
+            return h("div", {},
+              sel,
+              h("div", { class: "aviso-mini", style: "color:var(--graphite)",
+                text: alcance === "propios"
+                  ? cartera.map((c) => c.nombre).join(", ")
+                  : "Incluye a quienes no acompaña" }));
+          })()
+          : h("span", { class: "gris", text: "Todo el equipo" });
+
+      return h("tr", {},
+        h("td", {}, h("b", { text: p.nombre || "Sin nombre" }),
+          cartera.length
+            ? h("div", { class: "aviso-mini", style: "color:var(--graphite)",
+              text: `Acompaña a ${cartera.length} ${cartera.length === 1 ? "persona" : "personas"}` })
+            : null),
+        h("td", {}, etiquetaRol(p.rol)),
+        h("td", { class: "gris mono", text: p.email || "—" }),
+        h("td", {}, p.email
+          ? casilla("perfil", p.id, recibe, "Recibe")
+          : h("span", { class: "gris", text: "Sin correo" })),
+        h("td", {}, quienVe));
+    });
+
+    return panel("Quién recibe el panorama de otras personas",
+      "Un correo informativo con el avance de quienes están en desarrollo, para quien da "
+      + "seguimiento. Nadie lo recibe hasta que se marque aquí. Un mentor puede ver solo su "
+      + "cartera; la dirección o un rol de solo lectura, a todo el equipo. "
+      + "A quien además lleve un plan propio le llega todo en un mismo correo.",
+      tabla(["Persona", "Rol", "Correo", "Panorama", "A quién ve"], filas));
   };
 
   const pintar = () => {

@@ -19,7 +19,7 @@ import { spawn } from "node:child_process";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { resumenDe, armarPanorama } from "./resumen.mjs";
+import { resumenDe, armarPanorama, armarCorreo, bloqueEquipo } from "./resumen.mjs";
 import { enZona } from "../../js/agenda.js";
 
 const aqui = dirname(fileURLToPath(import.meta.url));
@@ -48,11 +48,14 @@ const col = (id, nombre, extra = {}) => ({
 const COLABORADORES = [
   /* Sin renglón en destinos: debe recibir. Y su correo debe salir de la
      cuenta vinculada, no del de la ficha. */
-  col("c1", "Ana Ruiz", { user_id: "u1", email: "ficha-ana@isel.mx" }),
+  col("c1", "Ana Ruiz", { user_id: "u1", email: "ficha-ana@isel.mx", mentor_id: "u-mentor" }),
   /* Excluida a mano: no debe recibir, pero sí debe aparecer en el panorama */
-  col("c2", "Beto Lara", { email: "beto@isel.mx" }),
+  col("c2", "Beto Lara", { email: "beto@isel.mx", mentor_id: "u-mentor" }),
   /* Sin correo en ningún lado: se salta */
-  col("c3", "Caro Mendoza", { email: null }),
+  col("c3", "Caro Mendoza", { email: null, mentor_id: null }),
+  /* Mentor y colaborador a la vez: debe recibir UN correo con su plan y su
+     cartera dentro, no dos. */
+  col("c4", "Mario Doble", { user_id: "u-mentor", email: "mario.h@isel.mx", mentor_id: "u-admin" }),
 ];
 
 const PERFILES = [
@@ -60,13 +63,19 @@ const PERFILES = [
   { id: "u2", nombre: "Mario Cruz", email: "mario.cruz@isel.mx", activo: true },
   { id: "u3", nombre: "Cuenta Suspendida", email: "susp@isel.mx", activo: false },
   { id: "u4", nombre: "Nunca Marcado", email: "nadie@isel.mx", activo: true },
+  { id: "u-mentor", nombre: "Mario Doble", email: "mario.h@isel.mx", activo: true },
+  { id: "u-otro", nombre: "Mentor Sin Nadie", email: "sinnadie@isel.mx", activo: true },
 ];
 
 const DESTINOS = [
   { id: "d1", colaborador_id: "c2", perfil_id: null, recibe: false },  // excluido
-  { id: "d2", colaborador_id: null, perfil_id: "u2", recibe: true },   // observador
-  { id: "d3", colaborador_id: null, perfil_id: "u3", recibe: true },   // pero suspendido
-  { id: "d4", colaborador_id: null, perfil_id: "u4", recibe: false },  // marcado que no
+  { id: "d2", colaborador_id: null, perfil_id: "u2", recibe: true, alcance: "todo" },
+  { id: "d3", colaborador_id: null, perfil_id: "u3", recibe: true, alcance: "todo" },   // suspendido
+  { id: "d4", colaborador_id: null, perfil_id: "u4", recibe: false, alcance: "todo" },  // marcado que no
+  /* Mentor que además lleva plan: su cartera es Ana y Beto */
+  { id: "d5", colaborador_id: null, perfil_id: "u-mentor", recibe: true, alcance: "propios" },
+  /* Marcado, pero sin nadie a su cargo: no debe recibir una tabla vacía */
+  { id: "d6", colaborador_id: null, perfil_id: "u-otro", recibe: true, alcance: "propios" },
 ];
 
 /* El identificador es el que arma clave() en metricas.js, no uno inventado:
@@ -158,13 +167,32 @@ console.log("\nQuién recibe");
   comprueba("el colaborador sin correo se salta",
     /Caro Mendoza: sin correo registrado/.test(salida), salida);
   comprueba("el perfil marcado recibe el panorama",
-    /Mario Cruz <mario\.cruz@isel\.mx>/.test(salida) && /Panorama del equipo · 1/.test(salida), salida);
+    /Mario Cruz <mario\.cruz@isel\.mx>/.test(salida), salida);
   comprueba("la cuenta suspendida no recibe", !/susp@isel\.mx/.test(salida), salida);
   comprueba("el perfil marcado que no, tampoco", !/nadie@isel\.mx/.test(salida), salida);
   comprueba("el asunto propio lleva el número de atrasadas",
     /asunto: Tu plan: \d+ tareas? atrasadas?/.test(salida), salida);
-  comprueba("el asunto del panorama cuenta a los tres del equipo",
-    /asunto: Panorama: \d+ de 3 con tareas atrasadas/.test(salida), salida);
+  comprueba("el asunto del panorama cuenta a los cuatro del equipo",
+    /asunto: Panorama: \d+ de 4 con tareas atrasadas/.test(salida), salida);
+}
+
+console.log("\nAlcance: todo el equipo o solo la cartera");
+{
+  const { salida } = await correr();
+
+  /* Mario Doble es mentor de Ana y Beto, y además lleva su propio plan */
+  comprueba("quien es mentor y colaborador recibe UN solo correo",
+    (salida.match(/mario\.h@isel\.mx/g) || []).length === 1, salida);
+  comprueba("y ese correo lleva su cartera dentro",
+    /Mario Doble <mario\.h@isel\.mx>[\s\S]*?con su cartera de 2/.test(salida), salida);
+  comprueba("la cartera es la suya, no el equipo entero",
+    /con su cartera de 2/.test(salida) && !/con su cartera de 4/.test(salida), salida);
+  comprueba("no se le manda además un panorama suelto",
+    !/su cartera: 2/.test(salida), salida);
+  comprueba("al observador de alcance «todo» sí le llega el equipo entero",
+    /Mario Cruz[\s\S]*?todo el equipo: 4/.test(salida), salida);
+  comprueba("al mentor sin nadie asignado no se le manda nada",
+    /Mentor Sin Nadie: sin colaboradores asignados/.test(salida), salida);
 }
 
 console.log("\nLa agenda manda");
@@ -265,14 +293,23 @@ console.log("\nEl envío real");
     const mandados = readFileSync(buzon, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse);
 
     comprueba("la corrida termina bien", codigo === 0, salida);
-    comprueba("salieron dos correos: un resumen y un panorama",
-      mandados.length === 2, JSON.stringify(mandados));
+    comprueba("salieron tres correos: dos resúmenes y un panorama",
+      mandados.length === 3, JSON.stringify(mandados));
     comprueba("el resumen fue a la colaboradora",
       mandados.some((m) => m.to === "ana@isel.mx" && /^Tu plan/.test(m.subject)),
       JSON.stringify(mandados));
     comprueba("el panorama fue al observador",
       mandados.some((m) => m.to === "mario.cruz@isel.mx" && /^Panorama/.test(m.subject)),
       JSON.stringify(mandados));
+    /* Lo que de verdad se está probando aquí: que el que es las dos cosas
+       recibe UN correo, y que el asunto avisa de su cartera sin tapar lo
+       suyo, que es lo que tiene que hacer. */
+    const doble = mandados.filter((m) => m.to === "mario.h@isel.mx");
+    comprueba("el mentor que además lleva plan recibe uno solo", doble.length === 1,
+      JSON.stringify(doble));
+    comprueba("y su asunto empieza por lo suyo y termina en su cartera",
+      doble[0] && /^Tu plan:.*· cartera: 1 con atraso$/.test(doble[0].subject),
+      doble[0] && doble[0].subject);
     comprueba("y el día quedó marcado, para no repetirlo en una hora",
       parches.length === 1 && parches[0].tabla === "pdc_recordatorios"
       && /^\d{4}-\d{2}-\d{2}$/.test(parches[0].cuerpo.ultimo_envio || ""),
@@ -309,8 +346,8 @@ console.log("\nEl panorama");
   const p = armarPanorama(registros, "https://ejemplo.mx");
 
   comprueba("incluye al excluido del correo propio", /Beto Lara/.test(p.html), "falta Beto");
-  comprueba("incluye a los tres del equipo",
-    ["Ana Ruiz", "Beto Lara", "Caro Mendoza"].every((n) => p.html.includes(n)));
+  comprueba("incluye a los cuatro del equipo",
+    ["Ana Ruiz", "Beto Lara", "Caro Mendoza", "Mario Doble"].every((n) => p.html.includes(n)));
   /* Caro no ha tocado nada, Ana va a medias y Beto está al corriente: el
      orden tiene que salir de eso y no del alfabeto. */
   const orden = ["Caro Mendoza", "Ana Ruiz", "Beto Lara"].map((n) => p.html.indexOf(n));
@@ -334,10 +371,28 @@ console.log("\nEl panorama");
   comprueba("trae versión de texto plano",
     p.texto.includes("PANORAMA DEL EQUIPO") && p.texto.includes("Ana Ruiz"));
   comprueba("el asunto dice de un golpe cómo va el equipo",
-    /^Panorama: \d+ de 3 con tareas atrasadas$/.test(p.asunto), p.asunto);
+    /^Panorama: \d+ de 4 con tareas atrasadas$/.test(p.asunto), p.asunto);
 
   writeFileSync(join(aqui, "correo-panorama.html"), p.html);
   console.log("       (panorama escrito en correo-panorama.html para verlo)");
+
+  /* El correo combinado: plan propio arriba, cartera abajo */
+  const mentor = registros.find((x) => x.col.nombre === "Mario Doble");
+  const suCartera = bloqueEquipo(
+    registros.filter((x) => x.col.mentor_id === "u-mentor"), { propios: true });
+  const combinado = armarCorreo(mentor.col, mentor.r, "https://ejemplo.mx", suCartera);
+
+  comprueba("el combinado trae las dos partes",
+    /Esta semana/.test(combinado.html) && /Tu cartera/.test(combinado.html), "falta una");
+  comprueba("y en la cartera van sus dos colaboradores",
+    combinado.html.includes("Ana Ruiz") && combinado.html.includes("Beto Lara"));
+  comprueba("pero no los que no son suyos",
+    !combinado.html.includes("Caro Mendoza"), "se coló alguien de fuera de su cartera");
+  comprueba("la versión de texto también las trae",
+    /TU CARTERA/.test(combinado.texto) && /Ana Ruiz/.test(combinado.texto));
+
+  writeFileSync(join(aqui, "correo-mentor.html"), combinado.html);
+  console.log("       (correo combinado escrito en correo-mentor.html)");
 }
 
 servidor.close();

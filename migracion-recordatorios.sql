@@ -114,3 +114,28 @@ begin
   end if;
 end
 $pol$;
+
+-- ---------------------------------------------------------------------------
+-- ALCANCE DEL PANORAMA  (agregado después)
+-- ---------------------------------------------------------------------------
+-- A quién ve quien recibe el panorama:
+--
+--   todo    → a todas las personas en desarrollo (dirección, solo lectura)
+--   propios → solo a los colaboradores que tiene asignados (un mentor)
+--
+-- El default es 'todo' porque es lo que ya recibían los marcados hasta
+-- ahora: nadie cambia de correo por esta migración.
+alter table public.pdc_recordatorio_destinos
+  add column if not exists alcance text not null default 'todo';
+
+do $alc$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'pdc_dest_alcance_valido') then
+    alter table public.pdc_recordatorio_destinos
+      add constraint pdc_dest_alcance_valido check (alcance in ('todo', 'propios'));
+  end if;
+end
+$alc$;
+
+comment on column public.pdc_recordatorio_destinos.alcance is
+  'Solo aplica a los destinos de perfil: todo = el equipo completo, propios = su cartera.';

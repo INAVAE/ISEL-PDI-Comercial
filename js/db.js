@@ -157,11 +157,15 @@ export const recordatorios = {
 
   /* Un renglón por persona. El upsert va contra la columna única que
      corresponde al tipo: un destino apunta a un colaborador o a un perfil,
-     nunca a los dos, y la restricción de la tabla lo exige. */
-  async fijar(tipo, id, recibe) {
+     nunca a los dos, y la restricción de la tabla lo exige.
+
+     `campos` lleva lo que se quiera fijar —{recibe} o {recibe, alcance}—;
+     lo que no venga conserva su valor, porque el upsert solo actualiza las
+     columnas que se mandan. */
+  async fijar(tipo, id, campos) {
     const columna = tipo === "colaborador" ? "colaborador_id" : "perfil_id";
     return ok(await sb.from("pdc_recordatorio_destinos")
-      .upsert({ [columna]: id, recibe, actualizado_en: new Date().toISOString() },
+      .upsert({ [columna]: id, ...campos, actualizado_en: new Date().toISOString() },
         { onConflict: columna })
       .select());
   },

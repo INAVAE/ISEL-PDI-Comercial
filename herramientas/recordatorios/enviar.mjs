@@ -28,7 +28,7 @@
    =========================================================================== */
 
 import { appendFileSync } from "node:fs";
-import { resumenDe, correoDe, armarCorreo, armarPanorama } from "./resumen.mjs";
+import { resumenDe, correoDe, armarCorreo, armarPanorama, bloqueEquipo } from "./resumen.mjs";
 import { toca } from "../../js/agenda.js";
 
 const {
@@ -116,7 +116,7 @@ async function cargar() {
      renglón no recibe, para no mandarle a toda la plantilla un correo que
      nadie pidió. */
   const colDice = new Map(destinos.filter((d) => d.colaborador_id).map((d) => [d.colaborador_id, d.recibe]));
-  const perfilDice = new Map(destinos.filter((d) => d.perfil_id).map((d) => [d.perfil_id, d.recibe]));
+  const perfilDestino = new Map(destinos.filter((d) => d.perfil_id).map((d) => [d.perfil_id, d]));
 
   return {
     registros,
@@ -125,9 +125,19 @@ async function cargar() {
     conPlan: registros.filter(({ col }) => colDice.get(col.id) !== false),
     /* Quiénes reciben el panorama: solo los marcados, y solo con acceso
        vigente. A una cuenta suspendida no se le sigue mandando nada. */
-    observadores: perfiles.filter((p) => perfilDice.get(p.id) === true && p.activo !== false),
+    observadores: perfiles
+      .filter((p) => (perfilDestino.get(p.id) || {}).recibe === true && p.activo !== false)
+      .map((p) => ({ perfil: p, alcance: (perfilDestino.get(p.id) || {}).alcance || "todo" })),
   };
 }
+
+/* A quién ve cada observador. «propios» se resuelve contra el mentor_id de
+   cada colaborador, que es la misma asignación que muestra la aplicación: no
+   hay una segunda lista de carteras que pudiera quedar desfasada. */
+const loQueVe = (registros, { perfil, alcance }) =>
+  alcance === "propios"
+    ? registros.filter(({ col }) => col.mentor_id === perfil.id)
+    : registros;
 
 /* ------------------------------------------------------------- envío ----- */
 
@@ -196,22 +206,28 @@ async function main() {
     }
   };
 
-  /* --- el resumen de cada quien --- */
-  console.log(`\nResumen propio · ${conPlan.length} ${conPlan.length === 1 ? "persona" : "personas"}`);
+  /* Todos los resúmenes PRIMERO, sin mandar nada. Hay que saber quién es
+     además observador antes de armarle el correo: si no, a un mentor que
+     también lleva plan se le manda el suyo y después, por separado, el de su
+     cartera, y acaba con dos o tres correos del mismo minuto. */
   const resumenes = [];
   for (const { col, exp } of registros) {
-    let r;
     try {
-      r = resumenDe(col, exp);
+      resumenes.push({ col, r: resumenDe(col, exp) });
     } catch (e) {
       console.error(`· ${col.nombre}: no se pudo calcular el resumen — ${e.message}`);
       fallos++;
-      continue;
     }
-    /* El panorama lleva a TODO el equipo, aunque alguien no reciba su propio
-       correo: quien observa quiere la foto completa, no la de los suscritos. */
-    resumenes.push({ col, r });
+  }
 
+  /* Lo que le toca ver a cada observador, calculado una sola vez */
+  const carteras = new Map(observadores.map((o) =>
+    [o.perfil.id, { ...o, bloque: bloqueEquipo(loQueVe(resumenes, o), { propios: o.alcance === "propios" }) }]));
+  const yaIncluidos = new Set();
+
+  /* --- el resumen de cada quien, con su cartera debajo si la tiene --- */
+  console.log(`\nResumen propio · ${conPlan.length} ${conPlan.length === 1 ? "persona" : "personas"}`);
+  for (const { col, r } of resumenes) {
     if (!conPlan.some((c) => c.col.id === col.id)) {
       console.log(`· ${col.nombre}: excluido en la configuración`);
       continue;
@@ -222,22 +238,40 @@ async function main() {
       saltados++;
       continue;
     }
-    await despachar(col.nombre, para, armarCorreo(col, r, APP_URL),
-      `${r.nPendientes} atrasadas, ${r.estaSemana ? r.estaSemana.faltan.length : 0} de esta semana`);
+
+    /* ¿Esta persona es además observadora? Entonces su cartera va aquí
+       dentro y no en un correo aparte. */
+    const suya = col.user_id ? carteras.get(col.user_id) : null;
+    const cartera = suya && suya.bloque.total ? suya.bloque : null;
+    if (suya) yaIncluidos.add(col.user_id);
+
+    await despachar(col.nombre, para, armarCorreo(col, r, APP_URL, cartera),
+      `${r.nPendientes} atrasadas, ${r.estaSemana ? r.estaSemana.faltan.length : 0} de esta semana`
+      + (cartera ? ` · con su cartera de ${cartera.total}` : ""));
   }
 
-  /* --- el panorama para quien observa --- */
-  if (observadores.length) {
-    console.log(`\nPanorama del equipo · ${observadores.length} ${observadores.length === 1 ? "persona" : "personas"}`);
-    const panorama = armarPanorama(resumenes, APP_URL);
-    for (const p of observadores) {
-      const para = SOLO_A || p.email;
+  /* --- el panorama para quien solo observa --- */
+  const sueltos = [...carteras.values()].filter((o) => !yaIncluidos.has(o.perfil.id));
+  if (sueltos.length) {
+    console.log(`\nPanorama · ${sueltos.length} ${sueltos.length === 1 ? "persona" : "personas"}`);
+    for (const o of sueltos) {
+      const para = SOLO_A || o.perfil.email;
       if (!para) {
-        console.log(`· ${p.nombre || p.id}: sin correo en su cuenta, se salta`);
+        console.log(`· ${o.perfil.nombre || o.perfil.id}: sin correo en su cuenta, se salta`);
         saltados++;
         continue;
       }
-      await despachar(p.nombre || p.email, para, panorama, "informativo");
+      /* Una cartera vacía no genera correo: mandarle a un mentor una tabla
+         sin nadie no le dice nada que no sepa, y enseña el programa como si
+         estuviera roto. */
+      if (!o.bloque.total && o.alcance === "propios") {
+        console.log(`· ${o.perfil.nombre}: sin colaboradores asignados, no se le manda nada`);
+        saltados++;
+        continue;
+      }
+      await despachar(o.perfil.nombre || o.perfil.email, para,
+        armarPanorama(loQueVe(resumenes, o), APP_URL, { propios: o.alcance === "propios" }),
+        o.alcance === "propios" ? `su cartera: ${o.bloque.total}` : `todo el equipo: ${o.bloque.total}`);
     }
   }
 
