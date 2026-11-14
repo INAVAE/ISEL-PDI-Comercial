@@ -18,8 +18,6 @@
      SOLO_A                 mandar todo a esa dirección, para probar
    =========================================================================== */
 
-import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
 import { resumenDe, correoDe, armarCorreo } from "./resumen.mjs";
 
 const {
@@ -38,31 +36,49 @@ if (!prueba && (!GMAIL_USER || !GMAIL_APP_PASSWORD)) {
   process.exit(1);
 }
 
-const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, { auth: { persistSession: false } });
+/* Se consulta la API REST con fetch en vez de supabase-js.
+   Son tres lecturas sin sesión ni tiempo real, y la librería traía consigo
+   un cliente de realtime que exige WebSocket nativo: en Node 20 eso tumbaba
+   la corrida entera antes de leer un solo renglón. Menos piezas de las que
+   depender para una tarea programada que además carga una llave de
+   servicio. */
+async function leer(tabla, parametros) {
+  const url = `${SUPABASE_URL}/rest/v1/${tabla}?${new URLSearchParams(parametros)}`;
+  const resp = await fetch(url, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      Accept: "application/json",
+    },
+  });
+  if (!resp.ok) {
+    const detalle = await resp.text().catch(() => "");
+    throw new Error(`${tabla}: ${resp.status} ${resp.statusText}${detalle ? " — " + detalle.slice(0, 300) : ""}`);
+  }
+  return resp.json();
+}
 
 async function cargar() {
-  const { data: cols, error } = await sb
-    .from("pdc_colaboradores").select("*").eq("estado", "activo");
-  if (error) throw new Error("No se pudieron leer los colaboradores: " + error.message);
-  if (!cols || !cols.length) return { registros: [], perfiles: new Map() };
+  const cols = await leer("pdc_colaboradores", { select: "*", estado: "eq.activo" });
+  if (!cols.length) return { registros: [], perfiles: new Map() };
 
-  const ids = cols.map((c) => c.id);
   /* Para el correo basta el avance del plan; el expediente entero pesa. */
-  const { data: avance, error: e2 } = await sb
-    .from("pdc_plan_avance").select("colaborador_id,tarea_id,hecho").in("colaborador_id", ids);
-  if (e2) throw new Error("No se pudo leer el avance: " + e2.message);
-
-  const { data: perfilesRaw } = await sb.from("pdc_profiles").select("id,email");
+  const ids = cols.map((c) => c.id);
+  const avance = await leer("pdc_plan_avance", {
+    select: "colaborador_id,tarea_id,hecho",
+    colaborador_id: `in.(${ids.join(",")})`,
+  });
+  const perfilesRaw = await leer("pdc_profiles", { select: "id,email" });
 
   return {
     registros: cols.map((col) => ({
       col,
       exp: {
-        avance: (avance || []).filter((a) => a.colaborador_id === col.id),
+        avance: avance.filter((a) => a.colaborador_id === col.id),
         evals: [], visitas: [], opps: [], cuentas: [], kpis: [], coaching: [],
       },
     })),
-    perfiles: new Map((perfilesRaw || []).map((p) => [p.id, p])),
+    perfiles: new Map(perfilesRaw.map((p) => [p.id, p])),
   };
 }
 
@@ -70,10 +86,17 @@ async function main() {
   const { registros, perfiles } = await cargar();
   if (!registros.length) { console.log("No hay colaboradores activos. Nada que mandar."); return; }
 
-  const correo = prueba ? null : nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
-  });
+  /* nodemailer se carga solo si de verdad se va a mandar algo: así el modo
+     prueba corre sin esa dependencia instalada y se puede comprobar todo el
+     camino —lectura, resumen y asuntos— sin tocar el correo. */
+  let correo = null;
+  if (!prueba) {
+    const { default: nodemailer } = await import("nodemailer");
+    correo = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+    });
+  }
 
   let enviados = 0, saltados = 0, fallos = 0;
 
@@ -125,4 +148,10 @@ async function main() {
   if (fallos) process.exit(1);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+main().catch((e) => {
+  /* En el registro de la corrida lo que sirve es la línea, no el rastro de
+     pila: quien la abre quiere saber si fue la llave, la red o un dato. */
+  console.error("Falló el envío: " + (e && e.message ? e.message : e));
+  if (process.env.RUNNER_DEBUG === "1" && e && e.stack) console.error(e.stack);
+  process.exit(1);
+});

@@ -35,10 +35,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
+      # Solo nodemailer: las lecturas van por fetch contra la API REST,
+      # que no necesita librería y evitó un cliente de tiempo real que
+      # exigía WebSocket nativo y tumbaba la corrida en Node 20.
       - name: Instalar lo que necesita el script
-        run: npm install --no-save @supabase/supabase-js@2 nodemailer@6
+        run: npm install --no-save nodemailer@6
 
       - name: Enviar
         env:
