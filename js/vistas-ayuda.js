@@ -7,11 +7,13 @@
    recibidas la ve solo el administrador.
    =========================================================================== */
 
-import { sugerencias as dbSug, SIN_BUZON } from "./db.js";
+import { sugerencias as dbSug, SIN_BUZON, adjuntosAyuda as dbAdj, mensajeArchivo,
+  LIMITE_ARCHIVO } from "./db.js";
+import { rutaAdjuntoAyuda } from "./rutas.js";
 import { AYUDA, SUG_TIPO, SUG_PISTA, SUG_ESTADO } from "./ayuda.js";
 import {
   h, panel, boton, campo, entrada, area, seleccion, aviso, lampara, vacio,
-  tabla, fecha, cls, etiquetaRol,
+  tabla, fecha, cls, etiquetaRol, pesoLegible, iconoClip, confirmar,
 } from "./ui.js";
 
 const TABS = [
@@ -107,7 +109,8 @@ function seccionFallas() {
 
 function seccionBuzon(ctx, pintar) {
   const { estado } = ctx;
-  const f = estado.ui.sugForm || (estado.ui.sugForm = { tipo: "mejora", pantalla: "", titulo: "", detalle: "" });
+  const f = estado.ui.sugForm || (estado.ui.sugForm = { tipo: "mejora", pantalla: "", titulo: "", detalle: "", archivos: [] });
+  if (!f.archivos) f.archivos = [];
   const mias = (estado.sugerencias || []).filter((x) => x.user_id === estado.perfil.id);
 
   const error = h("p", { class: "login-error" });
@@ -118,7 +121,7 @@ function seccionBuzon(ctx, pintar) {
     btn.disabled = true; btn.textContent = "Enviando…";
     try {
       await dbSug.crear(estado.perfil, f);
-      estado.ui.sugForm = { tipo: "mejora", pantalla: "", titulo: "", detalle: "" };
+      estado.ui.sugForm = { tipo: "mejora", pantalla: "", titulo: "", detalle: "", archivos: [] };
       await recargarSugerencias(ctx);
       aviso("Gracias. Tu observación ya le llegó al administrador");
       ctx.repintar();
@@ -147,6 +150,7 @@ function seccionBuzon(ctx, pintar) {
       campo("Cuéntalo con detalle", area(f.detalle, (v) => { f.detalle = v; }, 6,
         { placeholder: "Qué hiciste, qué esperabas que pasara y qué pasó en realidad." }), "full"),
       h("p", { class: "tiny", text: "Entre más concreto, más rápido se resuelve. Si fue un error, di qué pulsaste justo antes." }),
+      adjuntosBuzon(ctx, f),
       error,
       h("div", { class: "acciones-fila" }, btn)),
 
@@ -155,6 +159,68 @@ function seccionBuzon(ctx, pintar) {
       mias.length
         ? h("div", {}, ...mias.map((x) => tarjetaSug(x, false)))
         : vacio("Todavía no has mandado ninguna", "Cuando mandes una, aparecerá aquí con su estado.")));
+}
+
+/* -------------------------------------------- ADJUNTOS DE UNA OBSERVACIÓN -
+   Una captura de pantalla explica en un segundo lo que en palabras toma un
+   párrafo y aun así queda a medias.
+
+   Los archivos se suben en cuanto se eligen, antes de mandar la observación:
+   así se ve enseguida que entraron. Quedan en el formulario hasta que se
+   manda, y "Quitar" los borra de verdad.
+   -------------------------------------------------------------------------- */
+
+function adjuntosBuzon(ctx, f) {
+  const { estado } = ctx;
+  const lista = h("div", { class: "adj-lista" });
+  const aviso_ = h("span", { class: "tiny adj-estado" });
+
+  const quitar = (a) => confirmar(`¿Quitar "${a.nombre}"?`, async () => {
+    try {
+      await dbAdj.borrar(a.ruta);
+      f.archivos = f.archivos.filter((x) => x.ruta !== a.ruta);
+      pintarLista();
+    } catch (e) { aviso(mensajeArchivo(e), "error"); }
+  });
+
+  function pintarLista() {
+    lista.replaceChildren();
+    if (!f.archivos.length) return;
+    f.archivos.forEach((a) => {
+      lista.appendChild(h("div", { class: "adj" },
+        h("span", { class: "adj-nombre adj-nombre-fijo" }, iconoClip(), h("span", { text: a.nombre })),
+        h("span", { class: "tiny adj-peso", text: pesoLegible(a.bytes || 0) }),
+        h("button", { class: "link-mini adj-quitar", onclick: (e) => { e.preventDefault(); quitar(a); } }, "Quitar")));
+    });
+  }
+  pintarLista();
+
+  const entradaArchivo = h("input", { type: "file", multiple: true, class: "adj-input" });
+  const btn = boton("Adjuntar una captura o un archivo", () => entradaArchivo.click(), "ghost");
+
+  entradaArchivo.addEventListener("change", async () => {
+    const elegidos = [...entradaArchivo.files];
+    if (!elegidos.length) return;
+    btn.disabled = true;
+    for (const [i, arch] of elegidos.entries()) {
+      aviso_.textContent = `Subiendo ${i + 1} de ${elegidos.length}: ${arch.name}…`;
+      try {
+        f.archivos.push(await dbAdj.subir(rutaAdjuntoAyuda(estado.perfil.id, arch.name), arch));
+      } catch (e) {
+        aviso(mensajeArchivo(e), "error");
+        break;
+      }
+    }
+    aviso_.textContent = "";
+    btn.disabled = false;
+    entradaArchivo.value = "";
+    pintarLista();
+  });
+
+  return h("div", { class: "adjuntos adjuntos-buzon" },
+    lista,
+    h("div", { class: "adj-acciones" }, entradaArchivo, btn, aviso_),
+    h("p", { class: "tiny adj-ayuda", text: `Una captura de la pantalla donde pasó ahorra la mitad de las preguntas. Hasta ${Math.round(LIMITE_ARCHIVO / 1048576)} MB por archivo.` }));
 }
 
 /* ------------------------------------------- BANDEJA DEL ADMINISTRADOR --- */
@@ -217,11 +283,26 @@ function tarjetaSug(x, conAutor, desnudo) {
       x.rol ? " · " + etiquetaRol(x.rol) : "",
       x.autor_email ? " · " + x.autor_email : "") : null,
     h("div", { class: "ay-sug-d", text: x.detalle }),
+    (x.archivos || []).length ? adjuntosDeSug(x.archivos) : null,
     ctxDato.navegador ? h("div", { class: "tiny ay-sug-ctx", text: navegadorCorto(ctxDato.navegador) }) : null,
     x.respuesta ? h("div", { class: "ay-sug-r" },
       h("b", { text: "Respuesta del administrador. " }), x.respuesta) : null,
   ];
   return desnudo ? h("div", {}, ...cuerpo) : h("div", { class: "ay-sug" }, ...cuerpo);
+}
+
+/* Los adjuntos de una observación ya mandada: se abren, no se quitan. El
+   depósito es privado, así que cada apertura pide una liga firmada. */
+function adjuntosDeSug(archivos) {
+  const abrir = async (a) => {
+    try { window.open(await dbAdj.urlFirmada(a.ruta), "_blank", "noopener"); }
+    catch (e) { aviso(mensajeArchivo(e), "error"); }
+  };
+  return h("div", { class: "adj-lista ay-sug-adj" },
+    ...archivos.map((a) => h("div", { class: "adj" },
+      h("button", { class: "adj-nombre", title: "Abrir el archivo", onclick: (e) => { e.preventDefault(); abrir(a); } },
+        iconoClip(), h("span", { text: a.nombre })),
+      h("span", { class: "tiny adj-peso", text: pesoLegible(a.bytes || 0) }))));
 }
 
 /* El user agent completo es ilegible; interesa el navegador y el sistema. */

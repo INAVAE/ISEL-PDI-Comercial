@@ -4,13 +4,14 @@
    =========================================================================== */
 
 import { colaboradores as dbCol, avance as dbAvance, evaluaciones, kpiResultados,
-  evidencias as dbEvidencias, SIN_DEPOSITO, LIMITE_ARCHIVO } from "./db.js";
+  evidencias as dbEvidencias, mensajeArchivo, LIMITE_ARCHIVO } from "./db.js";
 import { NIVELES, CORTES, MADUREZ, FUENTES_CRITERIO } from "./plantilla.js";
 import { clave } from "./metricas.js";
+import { rutaEvidencia } from "./rutas.js";
 import {
   h, panel, tabla, boton, campo, entrada, area, seleccion, modal, cerrarModal, cerrarModalYa, aviso, confirmar,
   lampara, barra, dinero, numero, pct, vacio, radar, barras, barrasH, lineas, dial, color, cls, tarjeta, uid,
-  barraFiltros, lineaTiempo, tacometroTareas, fecha,
+  barraFiltros, lineaTiempo, tacometroTareas, fecha, pesoLegible, iconoClip,
 } from "./ui.js";
 
 /* ============================================================== PANEL ===== */
@@ -313,27 +314,6 @@ const bloque = (titulo, texto) => texto ? h("div", {}, h("h5", { text: titulo })
    cerraría la semana y el detalle que la persona tiene abiertos.
    -------------------------------------------------------------------------- */
 
-const pesoLegible = (b) =>
-  b >= 1048576 ? (b / 1048576).toFixed(1) + " MB"
-    : b >= 1024 ? Math.round(b / 1024) + " KB"
-      : b + " B";
-
-function iconoClip() {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("viewBox", "0 0 24 24");
-  svg.setAttribute("width", "13");
-  svg.setAttribute("height", "13");
-  svg.setAttribute("fill", "none");
-  svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "2");
-  svg.setAttribute("stroke-linecap", "round");
-  svg.setAttribute("aria-hidden", "true");
-  const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  p.setAttribute("d", "M20.4 11.3 11.7 20a5 5 0 1 1-7.1-7.1l8.7-8.7a3.3 3.3 0 1 1 4.7 4.7l-8.7 8.7a1.7 1.7 0 0 1-2.4-2.4l8-8");
-  svg.appendChild(p);
-  return svg;
-}
-
 function bloqueAdjuntos(ctx, col, s, t, registro, chk, puedeMarcar, marca, verEv) {
   const tareaId = clave(s.id, t.id);
   /* Copia local: la lista se actualiza aquí mismo tras cada subida o borrado,
@@ -412,7 +392,7 @@ function bloqueAdjuntos(ctx, col, s, t, registro, chk, puedeMarcar, marca, verEv
     for (const [i, f] of elegidos.entries()) {
       estado.textContent = `Subiendo ${i + 1} de ${elegidos.length}: ${f.name}…`;
       try {
-        archivos.push(await dbEvidencias.subir(col.id, tareaId, f));
+        archivos.push(await dbEvidencias.subir(rutaEvidencia(col.id, tareaId, f.name), f));
         subidos++;
       } catch (e) {
         aviso(mensajeArchivo(e), "error");
@@ -439,9 +419,6 @@ function bloqueAdjuntos(ctx, col, s, t, registro, chk, puedeMarcar, marca, verEv
     h("p", { class: "tiny adj-ayuda", text: `Cualquier tipo de archivo, hasta ${Math.round(LIMITE_ARCHIVO / 1048576)} MB cada uno. Una foto del tablero o el PDF de la cotización valen más que una liga que se rompe al mover la carpeta.` }));
 }
 
-const mensajeArchivo = (e) => e.message === SIN_DEPOSITO
-  ? "El guardado de archivos todavía no está instalado en Supabase. Avísale al administrador."
-  : e.message;
 
 /* ======================================================= COMPETENCIAS ===== */
 

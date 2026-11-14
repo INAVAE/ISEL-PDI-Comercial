@@ -24,3 +24,11 @@ export const rutaSegura = (texto) =>
    El id de tarea trae dos puntos ("S5:t1"), por eso también se sanea. */
 export const rutaEvidencia = (colaboradorId, tareaId, nombreArchivo, momento = Date.now()) =>
   `${colaboradorId}/${rutaSegura(tareaId)}/${momento}-${rutaSegura(nombreArchivo)}`;
+
+/* <user_id>/<momento>-<nombre>
+
+   Los adjuntos del buzón se ordenan por quien reporta, no por colaborador:
+   quien manda una observación puede no tener expediente. La primera carpeta
+   es su id, así la política del depósito compara contra auth.uid(). */
+export const rutaAdjuntoAyuda = (userId, nombreArchivo, momento = Date.now()) =>
+  `${userId}/${momento}-${rutaSegura(nombreArchivo)}`;

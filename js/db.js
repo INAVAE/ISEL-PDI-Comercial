@@ -275,6 +275,9 @@ export const sugerencias = {
       pantalla: campos.pantalla || null,
       titulo: campos.titulo,
       detalle: campos.detalle,
+      /* Las capturas que adjuntó. Van como lista de rutas, no de ligas:
+         una liga firmada caduca a los minutos y la ruta no. */
+      archivos: campos.archivos || [],
       /* Dónde ocurrió. Es lo primero que se pregunta al diagnosticar
          y lo que peor se recuerda. */
       contexto: {
@@ -321,6 +324,7 @@ export const sugerencias = {
    -------------------------------------------------------------------------- */
 
 export const DEPOSITO = "pdc-evidencias";
+export const DEPOSITO_AYUDA = "pdc-ayuda";
 export const LIMITE_ARCHIVO = 10 * 1024 * 1024;
 export const SIN_DEPOSITO = "SIN_DEPOSITO";
 
@@ -329,12 +333,14 @@ const faltaDeposito = (e) => {
   return /bucket not found|does not exist|404/i.test(m);
 };
 
-export const evidencias = {
-  async subir(colaboradorId, tareaId, archivo) {
+/* Un depósito se usa igual venga de donde venga: lo único que cambia es la
+   ruta, que arma quien llama. Dos copias de esto se desincronizan a la
+   primera corrección. */
+const deposito = (nombre) => ({
+  async subir(ruta, archivo) {
     if (archivo.size > LIMITE_ARCHIVO)
       throw new Error(`"${archivo.name}" pesa ${(archivo.size / 1048576).toFixed(1)} MB y el límite por archivo son 10 MB.`);
-    const ruta = rutaEvidencia(colaboradorId, tareaId, archivo.name);
-    const { error } = await sb.storage.from(DEPOSITO)
+    const { error } = await sb.storage.from(nombre)
       .upload(ruta, archivo, { cacheControl: "3600", upsert: false });
     if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
     return {
@@ -346,16 +352,29 @@ export const evidencias = {
     };
   },
 
-  /* El depósito es privado: para abrir un archivo hace falta una liga
+  /* Los depósitos son privados: para abrir un archivo hace falta una liga
      firmada, que vale unos minutos y luego deja de servir. */
   async urlFirmada(ruta, segundos = 300) {
-    const { data, error } = await sb.storage.from(DEPOSITO).createSignedUrl(ruta, segundos);
+    const { data, error } = await sb.storage.from(nombre).createSignedUrl(ruta, segundos);
     if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
     return data.signedUrl;
   },
 
   async borrar(ruta) {
-    const { error } = await sb.storage.from(DEPOSITO).remove([ruta]);
+    const { error } = await sb.storage.from(nombre).remove([ruta]);
     if (error) throw new Error(faltaDeposito(error) ? SIN_DEPOSITO : error.message);
   },
-};
+});
+
+/* Un depósito que todavía no existe no es un error que la persona pueda
+   resolver leyendo el mensaje crudo de Supabase. */
+export const mensajeArchivo = (e) => e.message === SIN_DEPOSITO
+  ? "El guardado de archivos todavía no está instalado en Supabase. Avísale al administrador."
+  : e.message;
+
+/* Evidencia de las tareas, ordenada por colaborador */
+export const evidencias = deposito(DEPOSITO);
+/* Adjuntos del buzón de ayuda, ordenados por quien reporta */
+export const adjuntosAyuda = deposito(DEPOSITO_AYUDA);
+
+

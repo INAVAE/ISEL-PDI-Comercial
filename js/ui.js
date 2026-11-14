@@ -197,6 +197,29 @@ export function seleccion(valor, opciones, onChange, opts = {}) {
   return el;
 }
 
+/* ------------------------------------------------- PIEZAS DE ARCHIVOS --- */
+
+export const pesoLegible = (b) =>
+  b >= 1048576 ? (b / 1048576).toFixed(1) + " MB"
+    : b >= 1024 ? Math.round(b / 1024) + " KB"
+      : b + " B";
+
+export function iconoClip(lado = 13) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", String(lado));
+  svg.setAttribute("height", String(lado));
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  p.setAttribute("d", "M20.4 11.3 11.7 20a5 5 0 1 1-7.1-7.1l8.7-8.7a3.3 3.3 0 1 1 4.7 4.7l-8.7 8.7a1.7 1.7 0 0 1-2.4-2.4l8-8");
+  svg.appendChild(p);
+  return svg;
+}
+
 export function boton(texto, onClick, variante) {
   return h("button", { class: cls("btn", variante && "btn-" + variante), onclick: onClick }, texto);
 }

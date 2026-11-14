@@ -1,14 +1,27 @@
 -- ===========================================================================
 -- ISEL · Plan de Desarrollo Comercial
--- Buzón de observaciones del centro de ayuda
+-- Buzón de observaciones del centro de ayuda, CON ARCHIVOS ADJUNTOS
 --
--- Ejecutar completo en el SQL Editor del proyecto de Supabase.
--- Se puede correr dos veces sin que falle.
+-- YA APLICADA en el proyecto el 13/11/2026 (migración
+-- "pdc_buzon_ayuda_con_adjuntos"). Se conserva aquí como referencia de lo
+-- que quedó en la base. Se puede volver a correr sin que falle.
 --
 -- Para qué: que cualquiera del equipo reporte un error o pida un cambio sin
--- salir de la herramienta, y le llegue al administrador con el nombre de
--- quien lo manda. Lo que se dice de pasillo se pierde; esto queda escrito,
--- con fecha y con dueño.
+-- salir de la herramienta, adjuntando una captura, y le llegue al
+-- administrador con el nombre de quien lo manda.
+--
+-- Qué quedó:
+--   · tabla public.pdc_sugerencias, con columna archivos (jsonb)
+--   · 3 políticas: cada quien lee las suyas, el administrador todas y es el
+--     único que cambia estado o responde. No hay política de borrado a
+--     propósito: una observación incómoda que se puede borrar no sirve.
+--   · depósito privado storage "pdc-ayuda" con 3 políticas, ordenado por
+--     quien reporta:  <user_id>/<momento>-<nombre>
+--
+-- Comprobado contra la base con ocho casos en una transacción que se
+-- deshizo sola: que el autor vea la suya y guarde el adjunto, que no pueda
+-- firmar como otro ni resolverla, que otro colaborador no la vea, que el
+-- administrador sí la vea y la resuelva, y que nadie pueda borrarla.
 -- ===========================================================================
 
 create table if not exists public.pdc_sugerencias (
@@ -31,6 +44,11 @@ create table if not exists public.pdc_sugerencias (
   -- Navegador, tamaño de ventana y tema. Es lo primero que se pregunta al
   -- diagnosticar y lo que peor se recuerda.
   contexto     jsonb not null default '{}'::jsonb,
+
+  -- Capturas o archivos que adjunta quien reporta:
+  -- [{ruta, nombre, tipo, bytes, subido_en}]. Se guarda la RUTA, no una liga:
+  -- una liga firmada caduca a los minutos y la ruta no.
+  archivos     jsonb not null default '[]'::jsonb,
 
   estado       text not null default 'nueva'
                check (estado in ('nueva','en_revision','resuelta','descartada')),
@@ -92,3 +110,60 @@ $pol$;
 
 -- Nadie borra observaciones: no hay política de delete, así que la tabla las
 -- conserva. Una observación incómoda que se puede borrar no sirve de nada.
+
+-- ---------------------------------------------------------------------------
+-- Depósito de los adjuntos. Separado del de evidencias: aquel se ordena por
+-- colaborador, este por quien reporta, porque quien manda una observación
+-- puede no tener expediente.
+-- ---------------------------------------------------------------------------
+
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('pdc-ayuda', 'pdc-ayuda', false, 10485760)
+on conflict (id) do update
+  set public = false, file_size_limit = 10485760;
+
+do $pol$
+begin
+  if exists (select 1 from pg_policies
+              where schemaname='storage' and tablename='objects' and policyname='pdc_ayuda_lee') then
+    alter policy pdc_ayuda_lee on storage.objects
+      using (bucket_id = 'pdc-ayuda'
+             and ((storage.foldername(name))[1] = (select auth.uid())::text
+                  or private.pdc_es_admin()));
+  else
+    create policy pdc_ayuda_lee on storage.objects
+      for select to authenticated
+      using (bucket_id = 'pdc-ayuda'
+             and ((storage.foldername(name))[1] = (select auth.uid())::text
+                  or private.pdc_es_admin()));
+  end if;
+
+  if exists (select 1 from pg_policies
+              where schemaname='storage' and tablename='objects' and policyname='pdc_ayuda_sube') then
+    alter policy pdc_ayuda_sube on storage.objects
+      with check (bucket_id = 'pdc-ayuda'
+                  and (storage.foldername(name))[1] = (select auth.uid())::text
+                  and private.pdc_rol() is not null);
+  else
+    create policy pdc_ayuda_sube on storage.objects
+      for insert to authenticated
+      with check (bucket_id = 'pdc-ayuda'
+                  and (storage.foldername(name))[1] = (select auth.uid())::text
+                  and private.pdc_rol() is not null);
+  end if;
+
+  if exists (select 1 from pg_policies
+              where schemaname='storage' and tablename='objects' and policyname='pdc_ayuda_borra') then
+    alter policy pdc_ayuda_borra on storage.objects
+      using (bucket_id = 'pdc-ayuda'
+             and ((storage.foldername(name))[1] = (select auth.uid())::text
+                  or private.pdc_es_admin()));
+  else
+    create policy pdc_ayuda_borra on storage.objects
+      for delete to authenticated
+      using (bucket_id = 'pdc-ayuda'
+             and ((storage.foldername(name))[1] = (select auth.uid())::text
+                  or private.pdc_es_admin()));
+  end if;
+end
+$pol$;

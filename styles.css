@@ -694,3 +694,11 @@ input[type=checkbox] { width: auto; }
 .clip-cuenta { display: inline-flex; align-items: center; gap: 3px; margin-left: 8px;
   padding: 1px 7px 1px 5px; border-radius: 9px; background: var(--panel2);
   color: var(--graphite); font-size: 11px; font-weight: 600; vertical-align: middle; }
+
+/* Adjuntos dentro del buzón de ayuda */
+.adjuntos-buzon { margin-top: 10px; }
+.adjuntos-buzon .adj-acciones { margin-top: 0; }
+/* En una observación ya mandada el nombre no abre nada al escribirla todavía */
+.adj-nombre-fijo { cursor: default; }
+.adj-nombre-fijo:hover span { text-decoration: none; }
+.ay-sug-adj { margin-top: 8px; }
