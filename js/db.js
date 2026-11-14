@@ -118,6 +118,59 @@ export const plantilla = {
   },
 };
 
+/* ------------------------------------------------- RECORDATORIOS --------- */
+
+/* Tablas nuevas: si la migración todavía no se corrió, la lectura falla con
+   un error de relación inexistente. Se distingue, igual que con el buzón,
+   para que la pantalla lo explique en vez de soltar el error crudo. */
+export const SIN_RECORDATORIOS = "SIN_RECORDATORIOS";
+
+const faltaTabla = (e) =>
+  /does not exist|schema cache|PGRST205|42P01/i.test(`${e.code || ""} ${e.message || ""}`);
+
+const leerTabla = async (nombre, filtro) => {
+  let q = sb.from(nombre).select("*");
+  if (filtro) q = q.eq(filtro[0], filtro[1]);
+  const { data, error } = await q;
+  if (error) throw new Error(faltaTabla(error) ? SIN_RECORDATORIOS : error.message);
+  return data || [];
+};
+
+export const recordatorios = {
+  /* Los ajustes y los destinos se leen juntos porque la pantalla no sirve
+     con la mitad: sin saber quién recibe, los días no dicen nada. */
+  async cargar() {
+    const [ajustes, destinos] = await Promise.all([
+      leerTabla("pdc_recordatorios", ["id", 1]),
+      leerTabla("pdc_recordatorio_destinos"),
+    ]);
+    return { ajustes: ajustes[0] || null, destinos };
+  },
+
+  async guardar(campos, autor) {
+    return ok(await sb.from("pdc_recordatorios").upsert({
+      id: 1, ...campos,
+      actualizado_en: new Date().toISOString(),
+      actualizado_por: autor,
+    }).select());
+  },
+
+  /* Un renglón por persona. El upsert va contra la columna única que
+     corresponde al tipo: un destino apunta a un colaborador o a un perfil,
+     nunca a los dos, y la restricción de la tabla lo exige. */
+  async fijar(tipo, id, recibe) {
+    const columna = tipo === "colaborador" ? "colaborador_id" : "perfil_id";
+    return ok(await sb.from("pdc_recordatorio_destinos")
+      .upsert({ [columna]: id, recibe, actualizado_en: new Date().toISOString() },
+        { onConflict: columna })
+      .select());
+  },
+};
+
+export const mensajeRecordatorios = (e) => e.message === SIN_RECORDATORIOS
+  ? "La configuración de recordatorios todavía no está instalada en Supabase: falta correr migracion-recordatorios.sql."
+  : e.message;
+
 /* ---------------------------------------------------- COLABORADORES ------ */
 
 const CAMPOS_PROGRAMA = ["plan", "grupos", "competencias", "kpis", "criterios", "planVisitas", "etapas", "riesgos", "examen", "juicio"];

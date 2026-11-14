@@ -1,15 +1,27 @@
 name: Recordatorios del plan de desarrollo
 
-# Lunes y jueves a las 7:35 de la mañana, hora de Ciudad de México (UTC-6,
-# sin horario de verano desde 2022), que son las 13:35 UTC.
+# Corre CADA HORA y casi siempre no hace nada.
 #
-# El minuto 35 es a propósito: a la hora en punto GitHub tiene su mayor
-# carga y las tareas programadas se retrasan más. Aun así, GitHub no
-# garantiza la hora exacta; puede correr algunos minutos después.
+# Los días y la hora los elige el administrador en la pantalla de
+# Recordatorios, y eso vive en la base de datos. El cron de un repositorio no
+# se puede cambiar desde la aplicación, así que el flujo despierta cada hora,
+# le pregunta a la configuración si le toca y se va si no. Una corrida que no
+# manda nada tarda unos segundos y no instala nada.
+#
+# El minuto 17 es a propósito: a la hora en punto GitHub tiene su mayor carga
+# y las tareas programadas se retrasan más. Aun así GitHub no garantiza la
+# hora, y por eso el envío tiene un margen de recuperación: si la corrida de
+# la hora elegida se retrasa, el correo sale en la primera que alcance,
+# dentro de las seis horas siguientes.
+#
+# Ojo: GitHub desactiva los flujos programados de un repositorio sin
+# actividad durante 60 días. Si los correos dejan de llegar sin explicación,
+# eso es lo primero que hay que revisar en la pestaña Actions.
 on:
   schedule:
-    - cron: "35 13 * * 1,4"
-  # Para probar a mano desde la pestaña Actions del repositorio
+    - cron: "17 * * * *"
+  # Para probar a mano desde la pestaña Actions del repositorio. Una corrida
+  # a mano omite la agenda: manda sin importar el día ni la hora.
   workflow_dispatch:
     inputs:
       solo_prueba:
@@ -37,13 +49,28 @@ jobs:
         with:
           node-version: "22"
 
-      # Solo nodemailer: las lecturas van por fetch contra la API REST,
-      # que no necesita librería y evitó un cliente de tiempo real que
-      # exigía WebSocket nativo y tumbaba la corrida en Node 20.
+      # Primero se pregunta. El registro de esta corrida dice en una línea por
+      # qué sí o por qué no, que es lo único que sirve cuando alguien abre
+      # Actions preguntándose dónde quedó su correo.
+      - name: Consultar la agenda
+        id: agenda
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SOLO_DECIDIR: "1"
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: node herramientas/recordatorios/enviar.mjs
+
+      # Solo nodemailer, y solo cuando de verdad hay algo que mandar: las
+      # lecturas van por fetch contra la API REST, que no necesita librería y
+      # evitó un cliente de tiempo real que exigía WebSocket nativo y tumbaba
+      # la corrida en Node 20.
       - name: Instalar lo que necesita el script
+        if: steps.agenda.outputs.enviar == '1'
         run: npm install --no-save nodemailer@6
 
       - name: Enviar
+        if: steps.agenda.outputs.enviar == '1'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
@@ -54,4 +81,8 @@ jobs:
           # prueba solo existe cuando se dispara a mano.
           SOLO_PRUEBA: ${{ github.event_name == 'workflow_dispatch' && inputs.solo_prueba && '1' || '' }}
           SOLO_A: ${{ github.event_name == 'workflow_dispatch' && inputs.solo_a || '' }}
+          FORZAR: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          # Solo la corrida programada anota el día. Una prueba a mano no debe
+          # consumir el envío de hoy.
+          MARCAR: ${{ github.event_name == 'schedule' && '1' || '' }}
         run: node herramientas/recordatorios/enviar.mjs

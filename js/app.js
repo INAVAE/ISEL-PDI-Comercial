@@ -10,6 +10,7 @@ import { vistaResumen, vistaColaboradores, vistaUsuarios, vistaPlantilla, vistaC
 import { vistaPanel, vistaRuta, vistaCompetencias, vistaKpis, vistaGraduacion, vistaRiesgos, vistaConfiguracion } from "./vistas-programa.js";
 import { vistaVisitas, vistaPipeline, vistaCuentas, vistaCoaching } from "./vistas-actividad.js";
 import { vistaAyuda, recargarSugerencias } from "./vistas-ayuda.js";
+import { vistaRecordatorios } from "./vistas-recordatorios.js";
 
 const raiz = document.getElementById("app");
 
@@ -78,12 +79,13 @@ const MENU = [
   { id: "configuracion", nombre: "Configurar programa", roles: ["admin", "mentor"], grupo: "Administración", requiereCol: true },
   { id: "plantilla", nombre: "Plantilla base", roles: ["admin"], grupo: "Administración" },
   { id: "usuarios", nombre: "Usuarios y roles", roles: ["admin"], grupo: "Administración" },
+  { id: "recordatorios", nombre: "Recordatorios", roles: ["admin"], grupo: "Administración" },
   { id: "cuenta", nombre: "Mi cuenta", roles: TODOS, grupo: "Administración" },
 ];
 
 const VISTAS = {
   resumen: vistaResumen, colaboradores: vistaColaboradores, usuarios: vistaUsuarios,
-  plantilla: vistaPlantilla, cuenta: vistaCuenta,
+  plantilla: vistaPlantilla, cuenta: vistaCuenta, recordatorios: vistaRecordatorios,
   panel: vistaPanel, ruta: vistaRuta, competencias: vistaCompetencias, kpis: vistaKpis,
   graduacion: vistaGraduacion, riesgos: vistaRiesgos, configuracion: vistaConfiguracion,
   visitas: vistaVisitas, pipeline: vistaPipeline, cuentas: vistaCuentas, coaching: vistaCoaching,

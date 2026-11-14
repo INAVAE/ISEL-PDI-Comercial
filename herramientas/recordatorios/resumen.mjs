@@ -222,6 +222,150 @@ export function armarCorreo(col, r, appUrl = "") {
   return { asunto, html, texto };
 }
 
+/* ------------------------------------------------- panorama del equipo --- */
+
+/* El segundo correo. Va a quien observa el programa sin llevar un plan
+   propio: la dirección, un rol de solo lectura. No le sirve «tus tareas»
+   porque no tiene; le sirve ver de un golpe quién va bien y quién no.
+   Es informativo y no pide nada: no trae botón de marcar ni reclamos. */
+
+const SEVERIDAD = { run: 0, off: 1, signal: 2, fault: 3 };
+
+export function armarPanorama(registros, appUrl = "", hoy = new Date()) {
+  /* Lo malo arriba. Un panorama ordenado por nombre obliga a leerlo
+     completo para encontrar lo que hay que atender. */
+  const filas = registros.slice().sort((a, b) =>
+    b.r.nPendientes - a.r.nPendientes ||
+    (SEVERIDAD[b.r.cal.estado] || 0) - (SEVERIDAD[a.r.cal.estado] || 0) ||
+    String(a.col.nombre).localeCompare(String(b.col.nombre), "es"));
+
+  const conAtraso = filas.filter((f) => f.r.nPendientes > 0).length;
+  const total = filas.length;
+  const atrasoTotal = filas.reduce((a, f) => a + f.r.nPendientes, 0);
+
+  const fechaLarga = new Intl.DateTimeFormat("es-MX", {
+    weekday: "long", day: "numeric", month: "long", timeZone: "America/Mexico_City",
+  }).format(hoy);
+
+  const celda = (contenido, extra = "") =>
+    `<td style="padding:9px 10px;border-bottom:1px solid #E6E7E2;font-size:13px;color:#22303B;font-family:${FUENTE};${extra}">${contenido}</td>`;
+
+  const encabezado = (texto, extra = "") =>
+    `<td style="padding:0 10px 7px;border-bottom:2px solid #D4D7D2;font-size:11px;color:#63707C;text-transform:uppercase;letter-spacing:.5px;font-family:${FUENTE};${extra}">${esc(texto)}</td>`;
+
+  const renglones = filas.map(({ col, r }) => {
+    const color = COLOR[r.cal.estado] || COLOR.off;
+    const faltanHoy = r.estaSemana ? r.estaSemana.faltan.length : 0;
+    return `<tr>
+      ${celda(`<b>${esc(col.nombre || "Sin nombre")}</b>`
+      + `<div style="margin-top:2px;font-size:11.5px;color:${color};font-family:${FUENTE}">${esc(r.cal.veredicto || "")}</div>`)}
+      ${celda(r.estaSemana ? `${r.estaSemana.n} <span style="color:#63707C">de ${r.semanas}</span>` : "—", "white-space:nowrap")}
+      ${celda(r.nPendientes
+        ? `<b style="color:#B3261E">${r.nPendientes}</b>`
+        : `<span style="color:#63707C">0</span>`, "text-align:center")}
+      ${celda(faltanHoy ? String(faltanHoy) : `<span style="color:#1F7A4D">lista</span>`, "text-align:center")}
+      ${celda(`${r.hechasTotales} <span style="color:#63707C">de ${r.totales}</span>`, "white-space:nowrap")}
+    </tr>`;
+  }).join("");
+
+  const titular = total === 0
+    ? "No hay nadie en desarrollo ahora mismo."
+    : conAtraso === 0
+      ? `Las ${total === 1 ? "única persona" : `${total} personas`} en desarrollo están al día con las semanas que ya pasaron.`
+      : `${conAtraso} de ${total} ${conAtraso === 1 ? "arrastra" : "arrastran"} tareas de semanas anteriores: `
+        + `${atrasoTotal} en total.`;
+
+  const html = `<!doctype html>
+<html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Panorama del plan de desarrollo</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#E6E7E2;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#E6E7E2" style="background-color:#E6E7E2">
+  <tr><td align="center" style="padding:28px 16px">
+
+    <!--[if mso]><table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0"
+           style="width:100%;max-width:680px;border-collapse:collapse">
+      <tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D7D2;padding:26px 24px;font-family:${FUENTE}">
+
+        <p style="margin:0 0 2px;font-size:11px;color:#63707C;letter-spacing:1px;text-transform:uppercase;font-family:${FUENTE}">ISEL · Plan de desarrollo comercial</p>
+        <h1 style="margin:0 0 4px;font-size:21px;color:#22303B;font-family:${FUENTE}">Panorama del equipo</h1>
+        <p style="margin:0 0 18px;font-size:12px;color:#63707C;font-family:${FUENTE}">${esc(fechaLarga)}</p>
+
+        ${recuadro(conAtraso ? COLOR.signal : COLOR.run, "#F4F5F2",
+    `<div style="font-size:14px;color:#22303B;font-family:${FUENTE}">${esc(titular)}</div>`)}
+        <div style="height:10px;line-height:10px;font-size:0">&nbsp;</div>
+
+        ${total ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse">
+          <tr>
+            ${encabezado("Persona")}
+            ${encabezado("Semana")}
+            ${encabezado("Atrasado", "text-align:center")}
+            ${encabezado("Esta semana", "text-align:center")}
+            ${encabezado("Avance")}
+          </tr>
+          ${renglones}
+        </table>
+        <p style="margin:14px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
+          <b>Atrasado</b> son tareas de semanas que ya pasaron y siguen sin marcar; no desaparecen al avanzar.
+          <b>Esta semana</b> es lo que falta de la semana en curso, que todavía está a tiempo.
+        </p>` : ""}
+
+        ${appUrl ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:22px 0 4px">
+             <tr><td bgcolor="#22303B" style="background:#22303B;padding:11px 20px">
+               <a href="${esc(appUrl)}" style="color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:bold;font-family:${FUENTE}">Ver el detalle</a>
+             </td></tr>
+           </table>` : ""}
+
+        <p style="margin:22px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
+          Este correo es informativo: llega a quien da seguimiento al programa.
+          Cada persona en desarrollo recibe por su lado el detalle de sus propias tareas.
+        </p>
+
+      </td></tr>
+    </table>
+
+    <table role="presentation" width="680" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:680px">
+      <tr><td align="center" style="padding:14px 0 0;font-size:11px;color:#767F88;font-family:${FUENTE}">
+        Correo automático del plan de desarrollo. No hace falta responderlo.
+      </td></tr>
+    </table>
+    <!--[if mso]></td></tr></table><![endif]-->
+
+  </td></tr>
+</table>
+</body></html>`;
+
+  const texto = [
+    "PANORAMA DEL EQUIPO",
+    fechaLarga,
+    "",
+    titular,
+    "",
+    ...filas.map(({ col, r }) => {
+      const faltanHoy = r.estaSemana ? r.estaSemana.faltan.length : 0;
+      return `  ${col.nombre}: semana ${r.estaSemana ? r.estaSemana.n : "—"} de ${r.semanas}`
+        + ` · atrasado ${r.nPendientes} · esta semana faltan ${faltanHoy}`
+        + ` · avance ${r.hechasTotales}/${r.totales} · ${r.cal.veredicto || ""}`;
+    }),
+    "",
+    appUrl ? appUrl : "",
+  ].join("\n");
+
+  const asunto = total === 0
+    ? "Panorama del equipo: nadie en desarrollo"
+    : conAtraso
+      ? `Panorama: ${conAtraso} de ${total} con tareas atrasadas`
+      : `Panorama: los ${total} al día`;
+
+  return { asunto, html, texto };
+}
+
 const primerNombre = (n) => String(n || "").trim().split(/\s+/)[0] || "";
 
 /* El tema de algunas semanas encadena tres o cuatro asuntos y, como

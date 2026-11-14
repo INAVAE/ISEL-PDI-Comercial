@@ -1,9 +1,60 @@
 # Recordatorios por correo
 
-Lunes y jueves, cada colaborador activo recibe el resumen de su semana: lo
-atrasado, lo que toca ahora y lo que lleva hecho. Corre desde GitHub Actions
+Salen dos correos: a cada persona en desarrollo, el resumen de su semana —lo
+atrasado, lo que toca ahora y lo que lleva hecho—; y a quien solo da
+seguimiento, el panorama del equipo. Corre desde GitHub Actions
 (`.github/workflows/recordatorios.yml`) y sale desde la cuenta de Gmail de
 ISEL.
+
+**Los días, la hora y los destinatarios no se tocan aquí.** Se configuran en
+la aplicación, en *Administración → Recordatorios*, que solo ve el
+administrador. Este archivo es para quien tenga que entender o reparar la
+maquinaria.
+
+## Cómo sabe cuándo enviar
+
+El cron de un repositorio no se puede cambiar desde una pantalla, así que el
+flujo corre **cada hora** y casi siempre no hace nada: lee la configuración,
+decide y se va. Una corrida que no manda nada tarda unos segundos y ni
+siquiera instala nodemailer.
+
+La decisión vive en `js/agenda.js`, en `js/` y no aquí porque la usan los
+dos: el envío para decidir y la pantalla para anunciar cuándo saldrá el
+próximo correo. Con una copia de cada lado, la pantalla acabaría prometiendo
+una cosa y el envío haciendo otra.
+
+Dos detalles que no son obvios:
+
+- **Recuperación.** GitHub no garantiza la hora. Si la corrida de la hora
+  elegida se retrasa, el correo sale en la primera que alcance, dentro de las
+  seis horas siguientes; pasado ese margen se deja para el próximo día
+  elegido, porque un recordatorio de las 7 de la mañana que llega a las once
+  de la noche ya no es un recordatorio.
+- **No se repite.** Al terminar, el envío anota la fecha local en
+  `pdc_recordatorios.ultimo_envio`. Sin esa marca, la corrida de la hora
+  siguiente volvería a mandar todo. Se anota aunque algún correo haya
+  rebotado: entre repetir un correo y perder un día, lo segundo se nota
+  menos y además deja la corrida en rojo.
+
+Ojo: GitHub desactiva los flujos programados de un repositorio sin actividad
+durante 60 días. Si los correos dejan de llegar sin explicación, eso es lo
+primero que hay que revisar en la pestaña Actions.
+
+## Quién recibe, y los dos defaults
+
+La tabla `pdc_recordatorio_destinos` lleva un renglón por persona, que apunta
+a un colaborador o a un perfil, nunca a los dos. Los valores que faltan tienen
+defaults **distintos**, y es lo único de todo esto que se presta a entenderse
+al revés:
+
+| Si no hay renglón… | …entonces |
+| --- | --- |
+| de un **colaborador** | recibe el resumen de su plan |
+| de un **perfil** | no recibe el panorama |
+
+La razón: al dar de alta a alguien nuevo nadie tiene que acordarse de
+encenderle el correo, y a la vez no se le manda a toda la plantilla un
+panorama que nadie pidió.
 
 ## Por qué no corre en Supabase
 
@@ -15,9 +66,20 @@ los permite, y de paso deja el historial de cada envío a la vista.
 
 | Archivo | Qué hace |
 | --- | --- |
-| `resumen.mjs` | Decide qué dice el correo. No depende de nada externo, por eso se puede probar. |
-| `enviar.mjs` | Trae los datos de Supabase y los manda. |
+| `../../js/agenda.js` | Decide si hoy toca enviar, y a partir de cuándo será el próximo. |
+| `resumen.mjs` | Decide qué dice cada uno de los dos correos. |
+| `enviar.mjs` | Trae los datos de Supabase y los manda. Lo único con entradas y salidas. |
+| `prueba-agenda.mjs` | Fechas inventadas: medianoche, domingo, cambio de horario, retrasos. |
+| `prueba-envio.mjs` | Levanta un Supabase de mentiras y corre `enviar.mjs` de verdad contra él. |
 | `prueba.mjs` | Comprueba el resumen contra expedientes reales exportados. |
+
+Las dos primeras pruebas no necesitan nada —ni red, ni datos, ni
+dependencias— y se corren así:
+
+```sh
+node herramientas/recordatorios/prueba-agenda.mjs
+node herramientas/recordatorios/prueba-envio.mjs
+```
 
 Las lecturas van por `fetch` contra la API REST, sin `supabase-js`: son tres
 consultas sin sesión ni tiempo real, y esa librería arrastra un cliente de
@@ -68,6 +130,9 @@ tocaría, con qué asunto y cuántas tareas, sin mandar un solo correo.
 Para ver el correo de verdad sin molestar al equipo, desmarca *solo prueba* y
 escribe tu dirección en *solo_a*: todos los correos llegan ahí.
 
+Una corrida a mano **omite la agenda**: manda sin importar el día ni la hora
+configurados, y no consume el envío del día.
+
 ## Correr las pruebas del resumen
 
 Necesitan un `datos.json` con expedientes reales, que no se versiona porque
@@ -92,11 +157,18 @@ node herramientas/recordatorios/prueba.mjs
 Deja los correos renderizados como `correo-<nombre>.html` para abrirlos en el
 navegador.
 
-## Quién recibe
+## A qué dirección llega
 
-Los colaboradores con estado **activo** y con correo: el de su cuenta de
-acceso si la tienen vinculada, y si no el de su ficha. A quien no tenga
-ninguno se le salta y queda anotado en el registro de la corrida.
+De un colaborador: la de su cuenta de acceso si la tiene vinculada, y si no
+la de su ficha. A quien no tenga ninguna se le salta, y queda anotado en el
+registro de la corrida. De un observador: la de su cuenta, y solo mientras
+su acceso siga vigente.
 
 Un correo que rebota no detiene a los demás, pero la corrida sale en rojo
 para que no pase inadvertido.
+
+## Si algo no llega
+
+El registro de cada corrida empieza con una línea `Agenda: …` que dice por
+qué sí o por qué no. Casi siempre la respuesta está ahí: que hoy no es día
+elegido, que todavía no es la hora, que ya se envió, o que está apagado.

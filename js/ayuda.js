@@ -203,6 +203,12 @@ export const AYUDA = {
       "Se pierde todo su historial: tareas, visitas, oportunidades, evaluaciones. Si solo terminó el programa o salió, archívalo: conserva el expediente y deja de aparecer en las listas activas."],
     ["¿Dónde veo la dirección de la página para pasársela a alguien?",
       "Es la misma que estás usando. Cópiala de la barra del navegador. Quien la abra necesita además una cuenta dada de alta por el administrador."],
+    ["¿Cada cuándo llegan los correos de recordatorio?",
+      "Los días y la hora los decide el administrador en Administración → Recordatorios, y la pantalla dice cuándo sale el próximo. El envío lo ejecuta un servicio externo y puede retrasarse unos minutos."],
+    ["No quiero recibir los correos, o quiero que los reciba alguien más.",
+      "Se configura en Administración → Recordatorios, que solo ve el administrador. Ahí se marca persona por persona quién recibe el resumen de su plan. Quien solo da seguimiento, sin llevar un plan propio, puede recibir aparte un panorama del equipo."],
+    ["Di de alta a alguien nuevo. ¿Tengo que encenderle los recordatorios?",
+      "No. Un colaborador nuevo queda incluido solo; si no quieres que los reciba, hay que desmarcarlo. El panorama del equipo es al revés: no le llega a nadie hasta que se le marque."],
   ],
 
   fallas: [

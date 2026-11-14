@@ -702,3 +702,17 @@ input[type=checkbox] { width: auto; }
 .adj-nombre-fijo { cursor: default; }
 .adj-nombre-fijo:hover span { text-decoration: none; }
 .ay-sug-adj { margin-top: 8px; }
+
+/* ----------------------------------------------- DÍAS DEL RECORDATORIO -- */
+/* Estos botones no son pestañas: la selección ES el dato que decide qué días
+   sale el correo. Con el estilo normal de .tab.activo, en el tema oscuro el
+   fondo del elegido y el del no elegido se diferencian en 1.6 de contraste
+   —en el claro, en 13.5—, así que de un vistazo no se sabe qué días están
+   puestos. Se refuerza aquí y no en .tab, para no mover las pestañas del
+   resto de la aplicación, y con tres señales que no dependen del color:
+   el anillo, el grosor de la letra y la palomita. */
+.dias-envio .tab.activo {
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px var(--run);
+}
+.dias-envio .tab.activo::before { content: "\2713\00a0"; }
