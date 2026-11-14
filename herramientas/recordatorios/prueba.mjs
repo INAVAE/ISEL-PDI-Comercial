@@ -79,6 +79,33 @@ check("la cuenta vinculada manda sobre el de la ficha",
   perfiles.get(base.user_id)?.email || "(sin cuenta)",
   correoDe({ ...base, email: "otro@ejemplo.com" }, perfiles) );
 
+/* --- las reglas que exige el Outlook de escritorio ---
+   Dibuja con el motor de Word: ignora max-width, los fondos de un div dentro
+   de otro y los bordes redondeados. Si alguien vuelve a maquetar con divs,
+   esto lo caza antes de que lo vea el equipo. */
+const correo = armarCorreo(datos.cols[0], resumenDe(datos.cols[0],
+  { avance: datos.avance, evals: [], visitas: [], opps: [], cuentas: [] }, HOY),
+  "https://ejemplo.mx/");
+const H = correo.html;
+
+check("outlook: la estructura va en tablas", true, (H.match(/<table/g) || []).length >= 4);
+check("outlook: el ancho también como atributo, no solo en el estilo",
+  true, /<table[^>]*width="620"/.test(H));
+check("outlook: el fondo también como bgcolor",
+  true, /bgcolor="#FFFFFF"/.test(H) && /bgcolor="#E6E7E2"/.test(H));
+check("outlook: lleva el bloque condicional de mso", true, H.includes("<!--[if mso]>"));
+check("outlook: y lo cierra", true, H.includes("<![endif]-->"));
+check("outlook: sin bordes redondeados, que los ignora", false, /border-radius/.test(H));
+check("outlook: sin display:inline-block, que descuadra", false, /display:\s*inline-block/.test(H));
+check("outlook: la franja de color es una celda, no un border-left de div",
+  true, /<td width="3"/.test(H));
+check("outlook: cada texto lleva su familia tipográfica",
+  true, (H.match(/font-family:/g) || []).length >= 10);
+check("outlook: las tablas no llevan espaciado heredado",
+  true, (H.match(/cellspacing="0"/g) || []).length === (H.match(/<table/g) || []).length);
+check("outlook: las tablas de maquetación se marcan como presentación",
+  true, (H.match(/role="presentation"/g) || []).length === (H.match(/<table/g) || []).length);
+
 /* Escapado: un nombre con < > no debe romper el html */
 const malo = armarCorreo({ ...base, nombre: '<script>x</script> Pedro' }, rn);
 check("escapa el html de los nombres", false, malo.html.includes("<script>"));

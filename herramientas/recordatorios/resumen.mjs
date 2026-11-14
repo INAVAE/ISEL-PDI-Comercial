@@ -77,70 +77,117 @@ export const esc = (s) => String(s ?? "")
 
 const COLOR = { run: "#1F7A4D", signal: "#9A6B00", fault: "#B3261E", off: "#63707C" };
 
+/* El Outlook de escritorio dibuja el correo con el motor de Word, que
+   ignora max-width, los fondos de un div dentro de otro y los bordes
+   redondeados: la tarjeta blanca desaparecía y todo quedaba de borde a
+   borde sobre el gris. Por eso la estructura va en TABLAS, que es lo único
+   que todos los clientes respetan, con el ancho también como atributo y no
+   solo en el estilo. El resto de los correos se ve igual que antes. */
+
+const FUENTE = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+
+/* Recuadro con una franja de color a la izquierda. En Word un border-left
+   sobre un div se pierde, así que la franja es una celda de 3 píxeles. */
+const recuadro = (colorFranja, fondo, contenido) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 14px">
+     <tr>
+       <td width="3" bgcolor="${colorFranja}" style="width:3px;background:${colorFranja};font-size:0;line-height:0">&nbsp;</td>
+       <td bgcolor="${fondo}" style="background:${fondo};padding:12px 14px">${contenido}</td>
+     </tr>
+   </table>`;
+
 export function armarCorreo(col, r, appUrl = "") {
   const { cal, vencidas, nPendientes, estaSemana, hechasTotales, totales } = r;
   const color = COLOR[cal.estado] || COLOR.off;
   const lista = (xs) => xs.map((t) => `<li style="margin:0 0 5px">${esc(t)}</li>`).join("");
 
   const bloqueVencidas = nPendientes
-    ? `<div style="margin:0 0 26px">
-         <h2 style="margin:0 0 4px;font-size:15px;color:#B3261E">Atrasado · ${nPendientes} ${nPendientes === 1 ? "tarea" : "tareas"}</h2>
-         <p style="margin:0 0 12px;font-size:13px;color:#63707C">De semanas que ya pasaron. No desaparece al avanzar: se acumula.</p>
-         ${vencidas.map((v) => `
-           <div style="margin:0 0 14px;padding:12px 14px;border-left:3px solid #B3261E;background:#FBF4F3">
-             <div style="font-size:13px;font-weight:600;color:#22303B">Semana ${v.n}${v.tema ? " · " + esc(v.tema) : ""}</div>
-             <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#22303B">${lista(v.tareas)}</ul>
-           </div>`).join("")}
-       </div>`
-    : `<div style="margin:0 0 26px;padding:12px 14px;border-left:3px solid #1F7A4D;background:#F2F8F4">
-         <div style="font-size:13px;color:#22303B"><b>No arrastras nada.</b> Las semanas anteriores están completas.</div>
-       </div>`;
+    ? `<h2 style="margin:0 0 4px;font-size:15px;color:#B3261E;font-family:${FUENTE}">Atrasado · ${nPendientes} ${nPendientes === 1 ? "tarea" : "tareas"}</h2>
+       <p style="margin:0 0 12px;font-size:13px;color:#63707C;font-family:${FUENTE}">De semanas que ya pasaron. No desaparece al avanzar: se acumula.</p>
+       ${vencidas.map((v) => recuadro("#B3261E", "#FBF4F3",
+      `<div style="font-size:13px;font-weight:bold;color:#22303B;font-family:${FUENTE}">Semana ${v.n}${v.tema ? " · " + esc(v.tema) : ""}</div>
+           <ul style="margin:8px 0 0;padding-left:18px;font-size:13px;color:#22303B;font-family:${FUENTE}">${lista(v.tareas)}</ul>`)).join("")}
+       <div style="height:12px;line-height:12px;font-size:0">&nbsp;</div>`
+    : recuadro("#1F7A4D", "#F2F8F4",
+      `<div style="font-size:13px;color:#22303B;font-family:${FUENTE}"><b>No arrastras nada.</b> Las semanas anteriores están completas.</div>`)
+      + `<div style="height:12px;line-height:12px;font-size:0">&nbsp;</div>`;
 
   const bloqueSemana = estaSemana
-    ? `<div style="margin:0 0 26px">
-         <h2 style="margin:0 0 4px;font-size:15px;color:#22303B">Esta semana · la ${estaSemana.n} de ${r.semanas}</h2>
-         ${estaSemana.objetivo ? `<p style="margin:0 0 12px;font-size:13px;color:#63707C">${esc(estaSemana.objetivo)}</p>` : ""}
-         ${estaSemana.faltan.length
-      ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:#22303B">${lista(estaSemana.faltan)}</ul>`
-      : `<p style="margin:0;font-size:13px;color:#1F7A4D"><b>Ya la completaste.</b></p>`}
-         <p style="margin:10px 0 0;font-size:12px;color:#63707C">${estaSemana.hechas} de ${estaSemana.total} hechas.</p>
-       </div>`
+    ? `<h2 style="margin:0 0 4px;font-size:15px;color:#22303B;font-family:${FUENTE}">Esta semana · la ${estaSemana.n} de ${r.semanas}</h2>
+       ${estaSemana.objetivo ? `<p style="margin:0 0 12px;font-size:13px;color:#63707C;font-family:${FUENTE}">${esc(estaSemana.objetivo)}</p>` : ""}
+       ${estaSemana.faltan.length
+      ? `<ul style="margin:0;padding-left:18px;font-size:13px;color:#22303B;font-family:${FUENTE}">${lista(estaSemana.faltan)}</ul>`
+      : `<p style="margin:0;font-size:13px;color:#1F7A4D;font-family:${FUENTE}"><b>Ya la completaste.</b></p>`}
+       <p style="margin:10px 0 24px;font-size:12px;color:#63707C;font-family:${FUENTE}">${estaSemana.hechas} de ${estaSemana.total} hechas.</p>`
+    : "";
+
+  /* El botón también va en tabla: un enlace con relleno se descuadra en
+     Word, y así el área pulsable es la celda entera. */
+  const boton = appUrl
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 4px">
+         <tr><td bgcolor="#22303B" style="background:#22303B;padding:11px 20px">
+           <a href="${esc(appUrl)}" style="color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:bold;font-family:${FUENTE}">Abrir mi plan</a>
+         </td></tr>
+       </table>`
     : "";
 
   const html = `<!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#E6E7E2">
-<div style="max-width:620px;margin:0 auto;padding:28px 22px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-  <div style="background:#FFFFFF;border:1px solid #D4D7D2;border-radius:8px;padding:26px 24px">
-    <p style="margin:0 0 2px;font-size:11px;color:#63707C;letter-spacing:.06em;text-transform:uppercase">ISEL · Plan de desarrollo comercial</p>
-    <h1 style="margin:0 0 18px;font-size:21px;color:#22303B">Hola, ${esc(primerNombre(col.nombre))}</h1>
+<html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Plan de desarrollo</title>
+<!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
+</head>
+<body style="margin:0;padding:0;background-color:#E6E7E2;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#E6E7E2" style="background-color:#E6E7E2">
+  <tr><td align="center" style="padding:28px 16px">
 
-    <div style="margin:0 0 24px;padding:12px 14px;background:#F4F5F2;border-radius:6px">
-      <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${color}"></span>
-      <span style="font-size:14px;font-weight:600;color:#22303B;padding-left:7px">${esc(cal.veredicto || "")}</span>
-      <div style="margin-top:6px;font-size:12px;color:#63707C">${esc(cal.detalle || "")}</div>
-    </div>
+    <!--[if mso]><table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+    <table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0"
+           style="width:100%;max-width:620px;border-collapse:collapse">
+      <tr><td bgcolor="#FFFFFF" style="background-color:#FFFFFF;border:1px solid #D4D7D2;padding:26px 24px;font-family:${FUENTE}">
 
-    ${bloqueVencidas}
-    ${bloqueSemana}
+        <p style="margin:0 0 2px;font-size:11px;color:#63707C;letter-spacing:1px;text-transform:uppercase;font-family:${FUENTE}">ISEL · Plan de desarrollo comercial</p>
+        <h1 style="margin:0 0 18px;font-size:21px;color:#22303B;font-family:${FUENTE}">Hola, ${esc(primerNombre(col.nombre))}</h1>
 
-    <div style="margin:0 0 24px;padding-top:18px;border-top:1px solid #E6E7E2">
-      <h2 style="margin:0 0 8px;font-size:15px;color:#22303B">Lo que llevas hecho</h2>
-      <p style="margin:0;font-size:13px;color:#22303B"><b>${hechasTotales}</b> de ${totales} tareas del programa completo.</p>
-      <p style="margin:6px 0 0;font-size:12px;color:#63707C">De las que ya tocaban, llevas ${cal.hechasVencidas ?? 0} de ${cal.tareasEsperadas ?? 0}.</p>
-    </div>
+        ${recuadro(color, "#F4F5F2",
+    `<div style="font-size:14px;font-weight:bold;color:#22303B;font-family:${FUENTE}">${esc(cal.veredicto || "")}</div>
+             <div style="margin-top:6px;font-size:12px;color:#63707C;font-family:${FUENTE}">${esc(cal.detalle || "")}</div>`)}
+        <div style="height:12px;line-height:12px;font-size:0">&nbsp;</div>
 
-    ${appUrl ? `<a href="${esc(appUrl)}" style="display:inline-block;padding:11px 20px;background:#22303B;color:#FFFFFF;text-decoration:none;border-radius:5px;font-size:14px;font-weight:600">Abrir mi plan</a>` : ""}
+        ${bloqueVencidas}
+        ${bloqueSemana}
 
-    <p style="margin:22px 0 0;font-size:11.5px;color:#767F88;line-height:1.5">
-      Marcar una tarea toma diez segundos y es lo que sostiene tu expediente.
-      Si algo de este resumen no cuadra con la realidad, díselo a tu mentor.
-    </p>
-  </div>
-  <p style="margin:14px 0 0;text-align:center;font-size:11px;color:#767F88">
-    Correo automático del plan de desarrollo. No hace falta responderlo.
-  </p>
-</div></body></html>`;
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr><td style="border-top:1px solid #E6E7E2;padding-top:18px;font-family:${FUENTE}">
+            <h2 style="margin:0 0 8px;font-size:15px;color:#22303B;font-family:${FUENTE}">Lo que llevas hecho</h2>
+            <p style="margin:0;font-size:13px;color:#22303B;font-family:${FUENTE}"><b>${hechasTotales}</b> de ${totales} tareas del programa completo.</p>
+            <p style="margin:6px 0 20px;font-size:12px;color:#63707C;font-family:${FUENTE}">De las que ya tocaban, llevas ${cal.hechasVencidas ?? 0} de ${cal.tareasEsperadas ?? 0}.</p>
+          </td></tr>
+        </table>
+
+        ${boton}
+
+        <p style="margin:22px 0 0;font-size:11.5px;color:#767F88;line-height:1.5;font-family:${FUENTE}">
+          Marcar una tarea toma diez segundos y es lo que sostiene tu expediente.
+          Si algo de este resumen no cuadra con la realidad, díselo a tu mentor.
+        </p>
+
+      </td></tr>
+    </table>
+
+    <table role="presentation" width="620" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:620px">
+      <tr><td align="center" style="padding:14px 0 0;font-size:11px;color:#767F88;font-family:${FUENTE}">
+        Correo automático del plan de desarrollo. No hace falta responderlo.
+      </td></tr>
+    </table>
+    <!--[if mso]></td></tr></table><![endif]-->
+
+  </td></tr>
+</table>
+</body></html>`;
 
   const texto = [
     `Hola, ${col.nombre}`,
