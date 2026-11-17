@@ -18,13 +18,24 @@
 
 export const DIA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-/* Si GitHub retrasó la corrida, el correo todavía sirve: sale en la primera
-   hora que alcance. Pero no a cualquier hora. Pasado este margen se deja
-   para el próximo día elegido, porque un recordatorio de las 7 de la mañana
-   que llega a las once de la noche ya no es un recordatorio, es una molestia.
-   Los retrasos reales de GitHub son de minutos; esto cubre el caso de que el
-   flujo haya estado detenido y se reanude. */
+/* Si el disparador se retrasó, el correo todavía sirve: sale en la primera
+   corrida que alcance. Pero no a cualquier hora: un recordatorio de las 7 de
+   la mañana que llega a las once de la noche ya no es un recordatorio, es
+   una molestia.
+
+   El margen se abrió de seis horas al final de la jornada por lo que pasó el
+   lunes 16 de noviembre. El cron de GitHub resultó no ser cada hora: ese día
+   despertó tres veces en vez de veinticuatro, y la única corrida posterior a
+   las 08:00 cayó a las 16:00, fuera del margen. Nadie recibió nada. Entre un
+   correo que llega tarde y un correo que no llega, el que no llega es peor,
+   y además no deja rastro de que faltó. */
 export const TOLERANCIA_MIN = 6 * 60;
+export const FIN_DE_JORNADA = 18 * 60;   // 18:00 locales
+
+/* El más tarde que se acepta: el margen de seis horas o el fin de la
+   jornada, lo que caiga después. Con un envío a las 8 de la mañana manda el
+   límite de las 18:00; con uno de la tarde, el margen de seis horas. */
+export const limiteDeEnvio = (objetivo) => Math.max(objetivo + TOLERANCIA_MIN, FIN_DE_JORNADA);
 
 /* La hora de la zona configurada, no la del servidor. Se saca de Intl y no
    restando seis horas: México dejó el horario de verano en 2022, pero el
@@ -81,9 +92,10 @@ export function toca(aj, ahora = new Date()) {
     return no(`son las ${hhmm(l.minutos)} y el envío es a las ${hhmm(objetivo)}`);
 
   const retraso = l.minutos - objetivo;
-  if (retraso > TOLERANCIA_MIN)
-    return no(`la hora del envío (${hhmm(objetivo)}) pasó hace ${Math.floor(retraso / 60)} horas, `
-      + `más del margen de ${TOLERANCIA_MIN / 60}; se deja para el próximo día elegido`);
+  if (l.minutos > limiteDeEnvio(objetivo))
+    return no(`la hora del envío (${hhmm(objetivo)}) pasó hace ${Math.floor(retraso / 60)} horas `
+      + `y ya son las ${hhmm(l.minutos)}, pasado el límite de las ${hhmm(limiteDeEnvio(objetivo))}; `
+      + `se deja para el próximo día elegido`);
 
   return {
     enviar: true,

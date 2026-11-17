@@ -11,7 +11,7 @@
    =========================================================================== */
 
 import { recordatorios as dbRec, mensajeRecordatorios, usuarios as dbUsuarios } from "./db.js";
-import { DIA, proximo, TOLERANCIA_MIN } from "./agenda.js";
+import { DIA, proximo, hhmm, limiteDeEnvio } from "./agenda.js";
 import {
   h, panel, boton, tabla, seleccion, aviso, fecha, etiquetaRol, cls,
 } from "./ui.js";
@@ -181,8 +181,10 @@ export function vistaRecordatorios(ctx) {
     const apagado = borrador.activo ? "" : "opacity:.45;pointer-events:none";
 
     return panel("Cuándo se envían",
-      "La hora es la de Ciudad de México. GitHub ejecuta el envío y puede retrasarlo "
-      + `unos minutos; si se retrasara más de ${TOLERANCIA_MIN / 60} horas, el correo se deja para el próximo día elegido.`,
+      "La hora es la de Ciudad de México. El envío lo ejecuta un servicio externo y puede "
+      + "retrasarse: si se retrasa, el correo sale en cuanto se pueda, a más tardar a las "
+      + `${hhmm(limiteDeEnvio(Number(borrador.hora) * 60 + Number(borrador.minuto)))}. `
+      + "Más tarde que eso se deja para el próximo día elegido.",
       h("label", { class: "check-inline" }, enc,
         borrador.activo ? "Recordatorios encendidos" : "Recordatorios apagados"),
       h("div", { class: "campo", style: apagado },

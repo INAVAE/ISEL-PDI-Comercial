@@ -5,7 +5,7 @@
        node herramientas/recordatorios/prueba-agenda.mjs
    =========================================================================== */
 
-import { toca, proximo, enZona, hhmm, TOLERANCIA_MIN } from "../../js/agenda.js";
+import { toca, proximo, enZona, hhmm, limiteDeEnvio, FIN_DE_JORNADA } from "../../js/agenda.js";
 
 let ok = 0, mal = 0;
 const comprueba = (titulo, condicion, detalle = "") => {
@@ -79,9 +79,27 @@ console.log("\nRecuperación si GitHub se retrasó");
   comprueba("y lo anota como retraso", /retraso/.test(r.razon), r.razon);
 }
 {
-  const r = toca(base, cdmx("2026-11-17T02:00:00Z")); // lunes 20:00 local
-  comprueba(`pasado el margen de ${TOLERANCIA_MIN / 60} h no envía`, r.enviar === false, r.razon);
-  comprueba("y explica que se deja para el próximo día", /próximo día/.test(r.razon), r.razon);
+  /* El caso real del lunes 16 de noviembre: la única corrida posterior a la
+     hora del envío cayó a las 16:00, ocho horas tarde, y nadie recibió nada.
+     Ahora sí sale, porque sigue dentro de la jornada. */
+  const r = toca({ ...base, hora: 8, minuto: 0 }, cdmx("2026-11-16T22:00:00Z")); // 16:00 local
+  comprueba("ocho horas tarde pero dentro de la jornada: envía", r.enviar === true, r.razon);
+
+  const tarde = toca(base, cdmx("2026-11-17T02:00:00Z")); // lunes 20:00 local
+  comprueba("pasado el fin de la jornada no envía", tarde.enviar === false, tarde.razon);
+  comprueba("y explica que se deja para el próximo día", /próximo día/.test(tarde.razon), tarde.razon);
+  comprueba("nunca manda de madrugada",
+    toca(base, cdmx("2026-11-17T05:00:00Z")).enviar === false);
+}
+
+console.log("\nHasta qué hora se acepta un envío retrasado");
+{
+  comprueba("con envío matutino manda el fin de la jornada",
+    limiteDeEnvio(8 * 60) === FIN_DE_JORNADA, String(limiteDeEnvio(8 * 60)));
+  comprueba("con envío vespertino manda el margen de seis horas",
+    limiteDeEnvio(16 * 60) === 16 * 60 + 360, String(limiteDeEnvio(16 * 60)));
+  comprueba("un envío de las 17:00 todavía sale a las 22:00",
+    toca({ ...base, hora: 17, minuto: 0 }, cdmx("2026-11-17T04:00:00Z")).enviar === true);
 }
 
 console.log("\nNo se repite el envío del día");

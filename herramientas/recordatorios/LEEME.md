@@ -25,20 +25,36 @@ una cosa y el envío haciendo otra.
 
 Dos detalles que no son obvios:
 
-- **Recuperación.** GitHub no garantiza la hora. Si la corrida de la hora
-  elegida se retrasa, el correo sale en la primera que alcance, dentro de las
-  seis horas siguientes; pasado ese margen se deja para el próximo día
-  elegido, porque un recordatorio de las 7 de la mañana que llega a las once
-  de la noche ya no es un recordatorio.
+- **Recuperación.** El correo sale en la primera corrida que alcance después
+  de la hora elegida, hasta el fin de la jornada —las 18:00 locales, o seis
+  horas después de la hora elegida si esta es vespertina—. Más tarde que eso
+  se deja para el próximo día elegido: un recordatorio de las 7 de la mañana
+  que llega a las once de la noche ya no es un recordatorio.
 - **No se repite.** Al terminar, el envío anota la fecha local en
   `pdc_recordatorios.ultimo_envio`. Sin esa marca, la corrida de la hora
   siguiente volvería a mandar todo. Se anota aunque algún correo haya
   rebotado: entre repetir un correo y perder un día, lo segundo se nota
   menos y además deja la corrida en rojo.
 
-Ojo: GitHub desactiva los flujos programados de un repositorio sin actividad
-durante 60 días. Si los correos dejan de llegar sin explicación, eso es lo
-primero que hay que revisar en la pestaña Actions.
+### El cron de GitHub no es cada hora
+
+Medido entre el 14 y el 17 de noviembre de 2026, con `cron: "17 * * * *"`:
+3, 4, 3 y 2 corridas por día, en vez de 24. GitHub documenta las tareas
+programadas como «el mejor esfuerzo» y las posterga o descarta cuando hay
+carga; en un repositorio público con poco movimiento descarta casi todas.
+
+Eso costó el envío del lunes 16: las únicas corridas de ese día cayeron a
+las 05:40 y a las 16:00 locales, y con el margen de seis horas que había
+entonces, ninguna de las dos mandó nada. De ahí que el margen llegue ahora
+hasta el fin de la jornada.
+
+**No conviene confiar en este cron como único disparador.** Lo que sí
+funciona es que algo más puntual —el pg_cron de Supabase, por ejemplo— pida
+la corrida, y que el cron de GitHub quede solo como red de seguridad.
+
+Ojo también: GitHub desactiva los flujos programados de un repositorio sin
+actividad durante 60 días. Si los correos dejan de llegar sin explicación,
+eso es lo segundo que hay que revisar en la pestaña Actions.
 
 ## Quién recibe, y los dos defaults
 
