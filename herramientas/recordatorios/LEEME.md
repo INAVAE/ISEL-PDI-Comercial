@@ -2,26 +2,103 @@
 
 A cada persona en desarrollo le llega el resumen de su semana —lo atrasado,
 lo que toca ahora y lo que lleva hecho—; y a quien da seguimiento, el
-panorama de las personas que le corresponden. Corre desde GitHub Actions
-(`.github/workflows/recordatorios.yml`) y sale desde la cuenta de Gmail de
-ISEL.
+panorama de las personas que le corresponden. El reloj lo pone Supabase, el
+envío lo ejecuta GitHub Actions (`.github/workflows/recordatorios.yml`) y
+sale desde la cuenta de Gmail de ISEL.
 
 **Los días, la hora y los destinatarios no se tocan aquí.** Se configuran en
 la aplicación, en *Administración → Recordatorios*, que solo ve el
 administrador. Este archivo es para quien tenga que entender o reparar la
 maquinaria.
 
-## Cómo sabe cuándo enviar
+## Quién dispara el envío
 
-El cron de un repositorio no se puede cambiar desde una pantalla, así que el
-flujo corre **cada hora** y casi siempre no hace nada: lee la configuración,
-decide y se va. Una corrida que no manda nada tarda unos segundos y ni
-siquiera instala nodemailer.
+Dos relojes, y el orden importa:
+
+1. **El pg_cron de Supabase** es el disparador de verdad. A la hora elegida
+   le pide a GitHub que corra el flujo, con `forzar=false` para que la
+   corrida pase por la agenda igual que una programada.
+2. **El cron por hora de GitHub** se queda como red de seguridad. Si la
+   llamada de Supabase falla —token caducado, Supabase caído—, una corrida
+   de GitHub dentro de la jornada todavía alcanza a mandar.
+
+No siempre fue así, y el motivo está abajo.
+
+### Por qué no basta el cron de GitHub
+
+Medido entre el 14 y el 17 de noviembre de 2026, con `cron: "17 * * * *"`:
+3, 4, 3 y 2 corridas por día, en vez de 24. GitHub documenta las tareas
+programadas como «el mejor esfuerzo» y las posterga o descarta cuando hay
+carga; en un repositorio público con poco movimiento descarta casi todas.
+
+Eso costó el envío del lunes 16 completo: las únicas corridas de ese día
+cayeron a las 05:40 y a las 16:00 locales, con el envío configurado a las
+08:00. Nadie recibió nada.
+
+pg_cron sí es puntual, porque es un trabajo de Postgres y no una cola
+compartida con medio mundo.
+
+Ojo también: GitHub desactiva los flujos programados de un repositorio sin
+actividad durante 60 días. Eso solo afectaría a la red de seguridad.
+
+### Las piezas en Supabase
+
+Todas en el esquema `private`, que no se publica en la API. Están en
+`migracion-reloj.sql`.
+
+| Función | Qué hace |
+| --- | --- |
+| `pdc_pedir_envio()` | Llama a GitHub con el token del Vault. |
+| `pdc_reprogramar_envio()` | Calcula la cita en UTC desde la configuración y la agenda en pg_cron. |
+| `pdc_al_cambiar_recordatorios()` | Disparador: reprograma sola la cita cuando cambian los días o la hora. |
+| `pdc_estado_reloj()` | Diagnóstico: si la cita está puesta y cómo le fue a la última llamada. |
+
+Dos cosas que cuestan de ver y que no hay que deshacer:
+
+- **La cita va dos minutos después de la hora elegida.** Si la llamada
+  cayera un segundo antes, la agenda contestaría «todavía no es la hora» y,
+  siendo la única cita de la semana, el correo se iría hasta el próximo día
+  elegido.
+- **La conversión a UTC recorre el día de la semana.** Las 20:00 del lunes
+  en México son las 02:00 del martes en UTC. Sin ese ajuste, un envío
+  vespertino saldría el día anterior.
+
+El error al reprogramar se traga a propósito: lo que no puede pasar es que
+un fallo de pg_cron impida al administrador guardar su configuración.
+
+### El token de GitHub
+
+Vive en el Vault de Supabase con el nombre `github_token_recordatorios`, y
+se descifra solo dentro de `pdc_pedir_envio()`. Es un token de alcance
+fino: solo este repositorio, solo el permiso **Actions: read and write**.
+
+El que está puesto se generó **sin fecha de caducidad**, a propósito: con
+fecha, el día que venciera los correos dejarían de salir a su hora y nada
+lo avisaría.
+
+Si algún día se revoca o se cambia, los correos no desaparecen: vuelven a
+depender de la red de seguridad y llegan en algún momento de la jornada en
+vez de a la hora en punto. Para reemplazarlo basta generar otro igual y
+cambiar el secreto en el Vault; no hay que tocar código.
+
+Para ver cómo va:
+
+```sql
+select * from private.pdc_estado_reloj();
+```
+
+Un `401` ahí significa que caducó o lo revocaron; un `403`, que le falta el
+permiso de Actions.
+
+## Cómo decide si hoy toca
 
 La decisión vive en `js/agenda.js`, en `js/` y no aquí porque la usan los
 dos: el envío para decidir y la pantalla para anunciar cuándo saldrá el
 próximo correo. Con una copia de cada lado, la pantalla acabaría prometiendo
 una cosa y el envío haciendo otra.
+
+El flujo pregunta primero y solo instala nodemailer si la respuesta es que
+sí. Una corrida que no manda nada tarda unos segundos.
 
 Dos detalles que no son obvios:
 
@@ -31,30 +108,10 @@ Dos detalles que no son obvios:
   se deja para el próximo día elegido: un recordatorio de las 7 de la mañana
   que llega a las once de la noche ya no es un recordatorio.
 - **No se repite.** Al terminar, el envío anota la fecha local en
-  `pdc_recordatorios.ultimo_envio`. Sin esa marca, la corrida de la hora
-  siguiente volvería a mandar todo. Se anota aunque algún correo haya
-  rebotado: entre repetir un correo y perder un día, lo segundo se nota
-  menos y además deja la corrida en rojo.
-
-### El cron de GitHub no es cada hora
-
-Medido entre el 14 y el 17 de noviembre de 2026, con `cron: "17 * * * *"`:
-3, 4, 3 y 2 corridas por día, en vez de 24. GitHub documenta las tareas
-programadas como «el mejor esfuerzo» y las posterga o descarta cuando hay
-carga; en un repositorio público con poco movimiento descarta casi todas.
-
-Eso costó el envío del lunes 16: las únicas corridas de ese día cayeron a
-las 05:40 y a las 16:00 locales, y con el margen de seis horas que había
-entonces, ninguna de las dos mandó nada. De ahí que el margen llegue ahora
-hasta el fin de la jornada.
-
-**No conviene confiar en este cron como único disparador.** Lo que sí
-funciona es que algo más puntual —el pg_cron de Supabase, por ejemplo— pida
-la corrida, y que el cron de GitHub quede solo como red de seguridad.
-
-Ojo también: GitHub desactiva los flujos programados de un repositorio sin
-actividad durante 60 días. Si los correos dejan de llegar sin explicación,
-eso es lo segundo que hay que revisar en la pestaña Actions.
+  `pdc_recordatorios.ultimo_envio`. Sin esa marca, la corrida siguiente
+  volvería a mandar todo. Se anota aunque algún correo haya rebotado: entre
+  repetir un correo y perder un día, lo segundo se nota menos y además deja
+  la corrida en rojo.
 
 ## Quién recibe, y los dos defaults
 
@@ -104,13 +161,17 @@ Su cartera entra al asunto solo si hay alguien con atraso. Si todos van al
 día, el dato está adentro y no tiene por qué quitarle espacio a lo suyo en
 la lista del correo.
 
-## Por qué no corre en Supabase
+## Por qué el envío no corre también en Supabase
 
-Supabase bloquea los puertos de SMTP (25, 465 y 587) en las Edge Functions,
-así que desde ahí no se puede hablar con `smtp.gmail.com`. GitHub Actions sí
-los permite, y de paso deja el historial de cada envío a la vista.
+El reloj sí está en Supabase, pero el envío no, y no por gusto: Supabase
+bloquea los puertos de SMTP (25, 465 y 587) en las Edge Functions, así que
+desde ahí no se puede hablar con `smtp.gmail.com`. GitHub Actions sí los
+permite, y de paso deja el historial de cada envío a la vista.
 
-## Las tres piezas
+Mover el envío a Supabase obligaría a dejar Gmail por un servicio de correo
+por HTTP —Resend, Brevo— y a verificar el dominio con registros DNS.
+
+## Las piezas
 
 | Archivo | Qué hace |
 | --- | --- |
