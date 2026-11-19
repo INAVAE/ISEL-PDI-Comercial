@@ -39,11 +39,18 @@ for (const col of datos.cols) {
         res.vencidas.every((v) => v.n <= res.cal.exigible));
   check(`${col.nombre}: las cuentas de hechas cuadran`, res.hechasTotales,
         exp.avance.filter((a) => a.hecho).length);
-  /* Lo atrasado + lo de esta semana tiene que dar lo que el panel llama
-     "sin hacer de las que ya tocaban": si no, el correo se contradice solo */
-  check(`${col.nombre}: atrasado + esta semana = lo que dice el ritmo`,
-        res.cal.pendientesVencidas,
-        res.nPendientes + (res.estaSemana ? res.estaSemana.faltan.length : 0));
+  /* Lo atrasado tiene que dar EXACTAMENTE lo que el panel llama "sin hacer
+     de las que ya tocaban".
+
+     Esta comprobación decía antes «atrasado + lo de esta semana», y pasaba:
+     las dos partes compartían la misma idea equivocada de que la semana en
+     curso ya estaba vencida. Así, el correo enseñaba «atrasado 1» en la
+     columna y «6 tareas sin hacer de las que ya tocaban» debajo, y la prueba
+     daba por bueno el descuadre en vez de delatarlo. */
+  check(`${col.nombre}: lo atrasado = lo que dice el ritmo`,
+        res.cal.pendientesVencidas, res.nPendientes);
+  check(`${col.nombre}: la semana en curso no cuenta como vencida`,
+        res.cal.cerradas, Math.max(0, res.cal.exigible - 1));
   check(`${col.nombre}: la semana en curso sigue al calendario`,
         res.cal.exigible, res.estaSemana?.n);
 }

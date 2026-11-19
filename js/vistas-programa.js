@@ -113,10 +113,18 @@ function bloqueRitmo(cal, ctx) {
         lampara(cal.estado, cal.veredicto)), dias));
 
   const pend = cal.pendientesVencidas;
-  const lecturaTareas = pend === 0
-    ? { estado: "run", texto: `${cal.hechasVencidas} tareas completadas, justo las que tocan hasta la semana ${cal.exigible}` }
-    : { estado: cal.estadoTareas,
-        texto: `${cal.hechasVencidas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas (semanas 1 a ${cal.exigible})` };
+  /* «Cerradas» son las semanas que ya pasaron. La semana en curso no entra:
+     sus tareas todavía están a tiempo, y medirlas aquí pintaba de rojo el
+     lunes a quien iba al día. */
+  const cerradas = cal.cerradas ?? 0;
+  /* «la semana 1» y no «las semanas 1 a 1» */
+  const rango = cerradas === 1 ? "la semana 1" : `las semanas 1 a ${cerradas}`;
+  const lecturaTareas = cerradas === 0
+    ? { estado: "run", texto: "Va en su primera semana: todavía no hay nada vencido" }
+    : pend === 0
+      ? { estado: "run", texto: `${cal.hechasVencidas} tareas completadas, justo las que tocaban hasta la semana ${cerradas}` }
+      : { estado: cal.estadoTareas,
+          texto: `${cal.hechasVencidas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas (${rango})` };
 
   /* El marcador de semana y la evidencia no coinciden */
   const discrepa = (cal.desviacion < 0 && pend === 0) || (cal.desviacion >= 0 && pend >= 5);
@@ -138,9 +146,11 @@ function bloqueRitmo(cal, ctx) {
         h("h5", { text: "Cumplimiento de tareas" }),
         tacometroTareas(cal.hechasVencidas, cal.tareasEsperadas),
         h("p", { class: "tacometro-pie",
-          text: pend === 0
-            ? "Al corriente con lo que toca a la fecha."
-            : `Faltan ${pend} tareas acumuladas de las semanas 1 a ${cal.exigible}.` }),
+          text: cerradas === 0
+            ? "Mide las semanas que ya cerraron. Todavía no cierra ninguna."
+            : pend === 0
+              ? "Al corriente con las semanas que ya cerraron."
+              : `${pend === 1 ? "Falta 1 tarea acumulada" : `Faltan ${pend} tareas acumuladas`} de ${rango}.` }),
         cal.adelantadas > 0
           ? h("p", { class: "tacometro-pie", text: `Además lleva ${cal.adelantadas} tareas adelantadas de semanas posteriores.` })
           : null)));
@@ -224,10 +234,13 @@ export function vistaRuta(ctx) {
       const nSemana = prog.plan.indexOf(s) + 1;
       const tareas = s.tasks || [];
       const hechas = tareas.filter((t) => m.tareaHecha(s.id, t.id)).length;
-      /* Una semana ya vencida con tareas sin hacer tiene que verse vencida.
+      /* Una semana ya cerrada con tareas sin hacer tiene que verse vencida.
          Antes, una semana sin nada marcado quedaba en gris igual que una que
-         todavía no toca, así que el rezago pasaba desapercibido. */
-      const vencida = nSemana <= (m.cal.exigible || 0);
+         todavía no toca, así que el rezago pasaba desapercibido.
+         La semana EN CURSO no cuenta como vencida: sus tareas todavía están
+         a tiempo, y pintarla de rojo el lunes no distingue a quien va
+         atrasado de quien apenas empieza la semana. */
+      const vencida = nSemana <= (m.cal.cerradas ?? 0);
       const estado = !tareas.length ? "off"
         : hechas === tareas.length ? "run"
           : vencida ? (hechas ? "signal" : "fault")

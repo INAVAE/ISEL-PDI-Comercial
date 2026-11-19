@@ -83,7 +83,13 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
   const tareasHechas = porSemana.reduce((a, n) => a + n, 0);
 
   if (!inicio) {
+    /* Las cifras de cumplimiento van en cero y no sin definir: el tacómetro
+       y los textos del panel las leen siempre, y con undefined mostraban
+       «undefined de undefined tareas». Sin fecha de inicio no hay nada
+       vencido que medir. */
     return { sinFecha: true, semanas, declarada, exigible: declarada, estado: "off",
+      cerradas: 0, tareasEsperadas: 0, hechasVencidas: 0, pendientesVencidas: 0,
+      adelantadas: 0, cumplimiento: 1, estadoTareas: "run", tareasHechas,
       veredicto: "Sin fecha de inicio",
       detalle: "Registra la fecha de inicio del programa para medir si va en tiempo." };
   }
@@ -99,6 +105,9 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
     return { inicio, fin, finCalculado, semanas, declarada, diasTotales,
       transcurridos, restantes, porArrancar: true, esperada: 0, exigible: 0, desviacion: 0,
       avanceCalendario: 0, estado: "off",
+      /* Igual que arriba: todavía no empieza, así que no hay nada vencido */
+      cerradas: 0, tareasEsperadas: 0, hechasVencidas: 0, pendientesVencidas: 0,
+      adelantadas: 0, cumplimiento: 1, estadoTareas: "run", tareasHechas,
       veredicto: `Arranca en ${Math.abs(transcurridos)} días`,
       detalle: `Programado del ${fmt(inicio)} al ${fmt(fin)}.` };
   }
@@ -115,18 +124,31 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
      la 1 a la 9 están vencidas aunque el calendario fuera más lento, y al
      revés. Así el rezago se acumula en vez de reiniciarse cada semana. */
   const exigible = Math.max(declarada, esperada);
+  const terminado = restantes < 0;
+
+  /* Pero la semana EN CURSO no está vencida: sus tareas tienen toda la
+     semana por delante. Contarlas como vencidas ponía en rojo el lunes a
+     quien iba al corriente, y hacía que el correo se contradijera solo: la
+     columna decía «atrasado 1» y el renglón de abajo, «6 tareas sin hacer de
+     las que ya tocaban». Las cinco de diferencia eran las de esa semana,
+     todavía a tiempo.
+     Si el plazo ya terminó no queda ninguna semana en curso, y entonces sí
+     se exigen todas. */
+  const cerradas = terminado ? semanas : Math.max(0, exigible - 1);
   const tareasEsperadas = prog.plan
-    .slice(0, exigible)
+    .slice(0, cerradas)
     .reduce((a, s) => a + (s.tasks || []).length, 0);
-  /* Solo cuentan las tareas hechas de semanas ya vencidas: adelantar trabajo
+  /* Solo cuentan las tareas hechas de semanas ya cerradas: adelantar trabajo
      de la semana 15 no tapa lo que quedó pendiente en la 2. */
-  const hechasVencidas = porSemana.slice(0, exigible).reduce((a, n) => a + n, 0);
-  const adelantadas = tareasHechas - hechasVencidas;
+  const hechasVencidas = porSemana.slice(0, cerradas).reduce((a, n) => a + n, 0);
+  /* Adelantadas son las de semanas POSTERIORES a la que está en curso. Lo
+     que se hace dentro de la semana en curso no es ir adelantado, es ir al
+     día. */
+  const adelantadas = porSemana.slice(exigible).reduce((a, n) => a + n, 0);
   const pendientesVencidas = Math.max(0, tareasEsperadas - hechasVencidas);
   const brechaTareas = -pendientesVencidas;
   const cumplimiento = tareasEsperadas > 0 ? hechasVencidas / tareasEsperadas : 1;
 
-  const terminado = restantes < 0;
   let estadoPlazo, veredictoPlazo;
   if (terminado && desviacion >= 0) { estadoPlazo = "run"; veredictoPlazo = "Programa concluido"; }
   else if (terminado) { estadoPlazo = "fault"; veredictoPlazo = `Venció el plazo en la semana ${declarada}`; }
@@ -146,7 +168,7 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
     : veredictoPlazo;
 
   return {
-    inicio, fin, finCalculado, semanas, declarada, esperada, exigible, desviacion,
+    inicio, fin, finCalculado, semanas, declarada, esperada, exigible, cerradas, desviacion,
     diasTotales, transcurridos, restantes, habilesTranscurridos, habilesRestantes,
     avanceCalendario, terminado,
     tareasEsperadas, tareasHechas, tareasTotales, hechasVencidas, adelantadas,

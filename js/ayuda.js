@@ -110,7 +110,7 @@ export const AYUDA = {
       para: "Cinco medidores, y no dicen lo mismo.",
       pasos: [
         ["Ritmo del programa", "Compara en qué semana debería ir por calendario contra en qué semana la tiene marcada el mentor. El cálculo usa días hábiles y descuenta los festivos oficiales, así que un puente no genera un atraso falso."],
-        ["Tacómetro de cumplimiento", "El porcentaje de tareas hechas de las que ya tocaban. Verde arriba de 95 %, ámbar entre 70 y 95, rojo abajo de 70."],
+        ["Tacómetro de cumplimiento", "El porcentaje de tareas hechas de las semanas que YA CERRARON. La semana en curso no cuenta: sus tareas tienen toda la semana para hacerse. Verde arriba de 95 %, ámbar entre 70 y 95, rojo abajo de 70."],
         ["Tareas pendientes acumuladas", "No se reinicia cada semana. Lo que quedó pendiente en la semana 2 sigue contándose en la 9. Y adelantar trabajo de una semana futura no lo tapa: eso se reporta aparte."],
         ["Semáforo por semana", "En Ruta de 20 semanas. Verde si está completa, ámbar a medias, rojo si ya venció y le faltan tareas. Gris es una semana que todavía no toca."],
         ["Puntos de graduación", "El medidor grande. Cada criterio cumplido suma puntos; la aguja es el avance hacia el dictamen."],

@@ -345,6 +345,20 @@ console.log("\nEl panorama");
   }));
   const p = armarPanorama(registros, "https://ejemplo.mx");
 
+  /* La invariante que se rompió el 19 de noviembre: la columna «Atrasado» y
+     el renglón rojo de debajo salen de dos cálculos distintos —uno de
+     resumen.mjs y otro de metricas.js— y tienen que coincidir. Cuando no
+     coincidieron, el correo decía «atrasado 1» y, en rojo, «6 tareas sin
+     hacer de las que ya tocaban»: las cinco de diferencia eran las de la
+     semana en curso, que todavía estaban a tiempo. */
+  for (const { col, r } of registros) {
+    comprueba(`${col.nombre}: la columna y el renglón rojo cuentan lo mismo`,
+      r.cal.pendientesVencidas === r.nPendientes,
+      `columna ${r.nPendientes}, renglón ${r.cal.pendientesVencidas}`);
+  }
+  comprueba("la semana en curso no se cuenta como vencida",
+    registros.every(({ r }) => r.cal.cerradas === Math.max(0, r.cal.exigible - 1)));
+
   comprueba("incluye al excluido del correo propio", /Beto Lara/.test(p.html), "falta Beto");
   comprueba("incluye a los cuatro del equipo",
     ["Ana Ruiz", "Beto Lara", "Caro Mendoza", "Mario Doble"].every((n) => p.html.includes(n)));
