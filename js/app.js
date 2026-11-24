@@ -28,8 +28,35 @@ export const estado = {
   /* semanasAbiertas: qué semanas de la ruta quedaron desplegadas. Vive aquí
      y no en el DOM porque cada refresco vuelve a pintar la vista. */
   sugerencias: null, sugPendientes: 0,
+  /* semanaVista: qué semana se está mirando. null = la que toca por
+     calendario. No se guarda en el expediente: mirar otra semana no debe
+     cambiarle el plan a nadie. */
   ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan", semanasAbiertas: null,
+        semanaVista: null,
         ayudaTab: "guia", ayudaCap: null, ayudaFaq: null, sugForm: null, sugFiltro: "" },
+};
+
+/* --------------------------------------------------- SEMANA EN FOCO ------ */
+
+/* En qué semana del programa va la persona HOY. Sale del calendario, no de
+   un campo que alguien tenga que mantener: con varios planes arrancados en
+   fechas distintas, averiguarlo a mano era comparar la fecha de inicio de
+   cada quien contra la de hoy antes de poder revisar nada. */
+export const semanaEnCurso = () => {
+  const total = (estado.col?.plan || []).length || 1;
+  const cal = estado.m?.cal;
+  /* Sin fecha de inicio no hay calendario del que deducirla: queda lo último
+     que se haya guardado en la ficha. */
+  if (!cal || cal.sinFecha) return Math.max(1, Math.min(total, estado.col?.semana_actual || 1));
+  if (cal.porArrancar) return 1;
+  return Math.max(1, Math.min(total, cal.exigible || 1));
+};
+
+/* La que se está mirando: la en curso, salvo que se haya navegado a otra. */
+export const semanaVista = () => {
+  const total = (estado.col?.plan || []).length || 1;
+  const v = estado.ui.semanaVista;
+  return v ? Math.max(1, Math.min(total, v)) : semanaEnCurso();
 };
 
 /* ------------------------------------------------------------- PERMISOS -- */
@@ -146,6 +173,10 @@ export async function elegirColaborador(id) {
   /* Otro colaborador va en otra semana: lo desplegado del anterior no aplica */
   estado.ui.semanasAbiertas = null;
   estado.ui.mesRuta = null;
+  /* Y se vuelve a la semana en curso. Antes había que mirar la fecha de
+     inicio de cada quien y contar para saber qué semana tocaba revisar; con
+     varios planes arrancados en fechas distintas eso era media revisión. */
+  estado.ui.semanaVista = null;
   await recargarExpediente();
   pintar();
 }
@@ -193,7 +224,8 @@ export function pintar() {
 
   try {
     const vista = VISTAS[estado.vista];
-    lienzo.appendChild(vista({ estado, permisos, ir, refrescar, refrescarTodo, elegirColaborador, repintar }));
+    lienzo.appendChild(vista({ estado, permisos, ir, refrescar, refrescarTodo, elegirColaborador, repintar,
+      semanaVista, semanaEnCurso }));
   } catch (err) {
     console.error(err);
     lienzo.appendChild(panel("No se pudo mostrar esta sección",
@@ -235,22 +267,32 @@ function cabecera(individual) {
       col && h("div", { class: "mini" }, h("span", { text: "Semana" }),
         (() => {
           const total = (col.plan || []).length || 20;
-          const actual = col.semana_actual || 1;
-          /* No es un filtro: marca en qué semana del programa va la persona,
-             y solo la mueve quien puede editar su plan. Para los demás se
-             muestra como dato, no como control, para no invitar a tocarlo. */
-          if (!permisos.editaPrograma(col))
-            return h("b", { class: "mini-dato", title: "Semana en la que va el colaborador" },
-              `${actual} de ${total}`);
-          const s = h("select", { title: "Mueve al colaborador a otra semana del programa" },
+          const enCurso = semanaEnCurso();
+          const vista = semanaVista();
+          /* Navegación, no un dato del expediente: mover esto cambia lo que
+             se está mirando y nada más. Antes guardaba la semana en la ficha
+             del colaborador, así que no se podía revisar una semana anterior
+             sin modificarle el plan. */
+          const s = h("select", { title: "Qué semana del programa estás mirando" },
             ...Array.from({ length: total }, (_, i) =>
-              h("option", { value: i + 1, selected: actual === i + 1 }, `${i + 1} de ${total}`)));
-          s.addEventListener("change", async () => {
-            await colaboradores.actualizar(col.id, { semana_actual: Number(s.value) });
-            aviso("Semana actualizada");
-            refrescar();
+              h("option", { value: i + 1, selected: vista === i + 1 },
+                `${i + 1} de ${total}${i + 1 === enCurso ? " · en curso" : ""}`)));
+          s.addEventListener("change", () => {
+            const n = Number(s.value);
+            estado.ui.semanaVista = n === enCurso ? null : n;
+            estado.ui.semanasAbiertas = null;
+            estado.ui.mesRuta = null;
+            pintar();
           });
-          return s;
+          return vista === enCurso
+            ? s
+            : h("span", { class: "semana-nav" }, s,
+              boton("Volver a la semana en curso", () => {
+                estado.ui.semanaVista = null;
+                estado.ui.semanasAbiertas = null;
+                estado.ui.mesRuta = null;
+                pintar();
+              }, "ghost"));
         })()),
       m && m.cal && !m.cal.sinFecha && h("div", { class: "mini" },
         h("span", { text: "Programa" }),

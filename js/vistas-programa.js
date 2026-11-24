@@ -19,7 +19,10 @@ import {
 export function vistaPanel(ctx) {
   const { col, m } = ctx.estado;
   const prog = m.prog;
-  const idx = Math.max(0, Math.min(prog.plan.length - 1, (col.semana_actual || 1) - 1));
+  /* La semana que se está mirando, que por omisión es la que toca por
+     calendario. Antes salía de col.semana_actual, un campo que había que
+     mover a mano antes de poder revisar a alguien. */
+  const idx = Math.max(0, Math.min(prog.plan.length - 1, ctx.semanaVista() - 1));
   const semana = prog.plan[idx];
 
   const hechasSemana = semana ? (semana.tasks || []).filter((t) => m.tareaHecha(semana.id, t.id)).length : 0;
@@ -126,8 +129,12 @@ function bloqueRitmo(cal, ctx) {
       : { estado: cal.estadoTareas,
           texto: `${cal.hechasVencidas} de ${cal.tareasEsperadas} tareas que ya deberían estar hechas (${rango})` };
 
-  /* El marcador de semana y la evidencia no coinciden */
-  const discrepa = (cal.desviacion < 0 && pend === 0) || (cal.desviacion >= 0 && pend >= 5);
+  /* El plazo corre más rápido que el trabajo: vale la pena decirlo aparte,
+     porque el tacómetro solo mira las semanas cerradas y esto mira el plan
+     entero. Antes esta nota comparaba el marcador de semana con la
+     evidencia, y el marcador ya no existe. */
+  const atrasoReal = (cal.avanceCalendario || 0) - (cal.avanceReal || 0);
+  const discrepa = !cal.porArrancar && atrasoReal >= 0.2;
 
   return panel("Ritmo del programa", cal.detalle,
     h("div", { class: "ritmo-cols" },
@@ -137,10 +144,9 @@ function bloqueRitmo(cal, ctx) {
           lampara(lecturaTareas.estado, lecturaTareas.texto)),
         lineaTiempo(cal),
         dias,
-        discrepa ? h("p", { class: "ritmo-nota" },
-          cal.desviacion < 0
-            ? "La semana marcada va atrasada pero las tareas están al día: probablemente falta mover el marcador de semana."
-            : "El marcador de semana va al corriente pero faltan tareas por completar: el avance real está por debajo.")
+        discrepa ? h("p", { class: "ritmo-nota",
+          text: `Del plazo lleva corrido el ${Math.round(cal.avanceCalendario * 100)} % y del programa lleva hecho el `
+            + `${Math.round((cal.avanceReal || 0) * 100)} %. Al ritmo de hoy no alcanza a terminar.` })
           : null),
       h("div", { class: "ritmo-tacometro" },
         h("h5", { text: "Cumplimiento de tareas" }),
@@ -195,13 +201,13 @@ export function vistaRuta(ctx) {
   const mesesInfo = (col.juicio && col.juicio.meses) || [];
   const recordado = ctx.estado.ui.mesRuta;
   let mesAbierto = meses.includes(recordado) ? recordado
-    : (prog.plan[Math.max(0, (col.semana_actual || 1) - 1)] || {}).mes || meses[0];
+    : (prog.plan[Math.max(0, ctx.semanaVista() - 1)] || {}).mes || meses[0];
 
   /* Marcar una tarea vuelve a pintar la vista. Si el despliegue viviera solo
      en el DOM, la semana se cerraría en cada palomita y habría que abrirla
      de nuevo para marcar la siguiente. */
   if (!ctx.estado.ui.semanasAbiertas)
-    ctx.estado.ui.semanasAbiertas = new Set([col.semana_actual || 1]);
+    ctx.estado.ui.semanasAbiertas = new Set([ctx.semanaVista()]);
   const abiertas = ctx.estado.ui.semanasAbiertas;
 
   const cont = h("div", { class: "vista" });

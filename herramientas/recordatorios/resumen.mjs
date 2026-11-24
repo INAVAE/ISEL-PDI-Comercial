@@ -22,14 +22,15 @@ export function resumenDe(col, exp, hoy = new Date()) {
   const prog = programa(col);
   const m = metricas(col, exp, hoy);
   const hechas = new Set((exp.avance || []).filter((a) => a.hecho).map((a) => a.tarea_id));
-  const exigible = m.cal.exigible || 0;
-  /* La semana en curso es la MÁS AVANZADA entre el marcador del mentor y la
-     que toca por calendario, igual que en el panel. Si se tomara solo el
-     marcador, un mentor que no lo ha movido haría que una semana posterior
-     saliera como "vencida" mientras una anterior seguía como "en curso", y
-     el asunto del correo contradiría a la línea de ritmo que va debajo. */
-  const semanaEnCurso = Math.max(1, Math.min(prog.plan.length || 1,
-    exigible || col.semana_actual || 1));
+  /* Hasta dónde está vencido lo decide metricas.js, no este archivo.
+     Antes se calculaba aquí otra vez, con sus propias reglas, y bastó que
+     el calendario cambiara para que las dos cuentas se separaran: la
+     columna del correo decía 3 atrasadas y el renglón de abajo, 4. Un solo
+     origen para el mismo número.
+     Si ya cerraron todas las semanas, el plan terminó y no hay «semana en
+     curso»: todo lo que falte está vencido. */
+  const cerradas = m.cal.cerradas ?? 0;
+  const semanaEnCurso = cerradas < prog.plan.length ? cerradas + 1 : 0;
 
   const vencidas = [];
   let estaSemana = null;
@@ -50,9 +51,9 @@ export function resumenDe(col, exp, hoy = new Date()) {
         total: tareas.length,
       };
     }
-    /* Vencida: ya se exigía y no es la que está en curso. La semana en curso
-       va en su propio bloque, porque todavía hay tiempo de hacerla. */
-    if (n <= exigible && n !== semanaEnCurso && faltan.length)
+    /* Vencida: su semana ya cerró. La que está en curso va en su propio
+       bloque, porque todavía hay tiempo de hacerla. */
+    if (n <= cerradas && faltan.length)
       vencidas.push({ n, tema: recorta(s.tema || s.objetivo || ""), tareas: faltan.map((t) => t.texto) });
   });
 
@@ -227,15 +228,18 @@ export function armarCorreo(col, r, appUrl = "", cartera = null) {
 
   /* El asunto se lee en la lista del correo sin abrirlo: lleva el número que
      importa, no "Recordatorio del plan de desarrollo". */
-  const nSem = estaSemana ? estaSemana.n : "—";
   const faltanHoy = estaSemana ? estaSemana.faltan.length : 0;
+  /* Sin semana en curso el programa ya terminó, y entonces el asunto no
+     puede decir en qué semana va: decía «semana —», que no significa nada
+     para quien lo lee en la lista del correo. */
+  const dondeVa = estaSemana ? `semana ${estaSemana.n}` : "programa concluido";
   /* "Al día" solo cuando no falta NADA. Decirlo con tareas de esta semana sin
      marcar sonaba a que ya no había que hacer nada. */
   const propio = nPendientes
-    ? `Tu plan: ${nPendientes} ${nPendientes === 1 ? "tarea atrasada" : "tareas atrasadas"} · semana ${nSem}`
+    ? `Tu plan: ${nPendientes} ${nPendientes === 1 ? "tarea atrasada" : "tareas atrasadas"} · ${dondeVa}`
     : faltanHoy
-      ? `Tu plan: ${faltanHoy} ${faltanHoy === 1 ? "tarea" : "tareas"} de esta semana · semana ${nSem}`
-      : `Tu plan al día · semana ${nSem}`;
+      ? `Tu plan: ${faltanHoy} ${faltanHoy === 1 ? "tarea" : "tareas"} de esta semana · ${dondeVa}`
+      : estaSemana ? `Tu plan al día · semana ${estaSemana.n}` : "Programa concluido: todo marcado";
 
   /* La cartera solo entra al asunto cuando hay algo que hacer con ella. Si
      todos van al día, el dato está adentro y no tiene por qué robarle

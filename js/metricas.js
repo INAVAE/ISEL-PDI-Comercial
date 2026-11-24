@@ -54,6 +54,20 @@ export const festivosMX = (anio) => [
 
 const esFinDeSemana = (f) => f.getDay() === 0 || f.getDay() === 6;
 
+/* El lunes de la semana en que cae esa fecha. Las semanas del programa son
+   las del calendario: empiezan en lunes y cierran el viernes. */
+const lunesDe = (f) => {
+  const d = soloFecha(f);
+  return sumarDias(d, -((d.getDay() + 6) % 7));
+};
+
+/* El viernes de la última semana del programa, para cuando no hay fecha de
+   término capturada. Antes se sumaban semanas * 7 días a la fecha de
+   arranque, lo que dejaba el término en el mismo día de la semana en que
+   se arrancó: un plan que empezaba en martes terminaba un martes. */
+export const viernesFinal = (inicio, semanas) =>
+  sumarDias(lunesDe(inicio), (Math.max(1, semanas) - 1) * 7 + 4);
+
 /* Días hábiles en [a, b): lunes a viernes, menos los festivos. */
 const habilesEntre = (a, b) => {
   const d1 = soloFecha(a), d2 = soloFecha(b);
@@ -94,7 +108,7 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
       detalle: "Registra la fecha de inicio del programa para medir si va en tiempo." };
   }
 
-  const fin = aFecha(col.fecha_fin_prevista) || sumarDias(inicio, semanas * 7);
+  const fin = aFecha(col.fecha_fin_prevista) || viernesFinal(inicio, semanas);
   const finCalculado = !col.fecha_fin_prevista;
   const diasTotales = Math.max(1, diasEntre(inicio, fin));
   const transcurridos = diasEntre(inicio, hoy);
@@ -103,8 +117,8 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
   /* Aún no arranca */
   if (transcurridos < 0) {
     return { inicio, fin, finCalculado, semanas, declarada, diasTotales,
-      transcurridos, restantes, porArrancar: true, esperada: 0, exigible: 0, desviacion: 0,
-      avanceCalendario: 0, estado: "off",
+      transcurridos, restantes, porArrancar: true, esperada: 0, exigible: 0,
+      avanceCalendario: 0, avanceReal: 0, estado: "off",
       /* Igual que arriba: todavía no empieza, así que no hay nada vencido */
       cerradas: 0, tareasEsperadas: 0, hechasVencidas: 0, pendientesVencidas: 0,
       adelantadas: 0, cumplimiento: 1, estadoTareas: "run", tareasHechas,
@@ -112,18 +126,29 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
       detalle: `Programado del ${fmt(inicio)} al ${fmt(fin)}.` };
   }
 
-  /* Semana en la que debería ir según el calendario, contando días hábiles */
+  /* Semana en la que debería ir según el calendario.
+     Es la semana NATURAL, de lunes a viernes, no cinco días hábiles contados
+     desde la fecha de arranque. Quien dice «esta semana» se refiere a la del
+     calendario, y con la cuenta anterior un plan que arrancaba un martes
+     cambiaba de semana los martes: nadie podía mirar el calendario de pared
+     y saber en qué semana del programa iba. */
   const habilesTranscurridos = habilesEntre(inicio, hoy);
   const habilesRestantes = habilesEntre(hoy, fin);
-  const esperada = Math.max(1, Math.min(semanas, Math.floor(habilesTranscurridos / 5) + 1));
-  const desviacion = declarada - esperada;
+  const semanasCorridas = Math.round((lunesDe(hoy) - lunesDe(inicio)) / (7 * DIA));
+  const esperada = Math.max(1, Math.min(semanas, semanasCorridas + 1));
   const avanceCalendario = Math.max(0, Math.min(1, transcurridos / diasTotales));
 
-  /* Hasta qué semana se exigen las tareas. Es la más avanzada de las dos
-     lecturas: si el mentor ya movió el marcador a la semana 9, las tareas de
-     la 1 a la 9 están vencidas aunque el calendario fuera más lento, y al
-     revés. Así el rezago se acumula en vez de reiniciarse cada semana. */
-  const exigible = Math.max(declarada, esperada);
+  /* Hasta qué semana se exigen las tareas: la que toca por calendario.
+     Antes era la más avanzada entre esta y un marcador que el mentor movía
+     a mano (`semana_actual`). Ese marcador se dejó de mantener en cuanto
+     hubo varios planes con fechas distintas —había que calcular la semana de
+     cada quien antes de poder revisarlo— y un valor viejo solo hacía daño:
+     si se quedaba ADELANTE del calendario, daba por vencidas semanas que
+     todavía no llegaban. Atrás no servía de nada, porque el calendario
+     ganaba igual.
+     El atraso que queda es el de las tareas, que se mide solo y nadie puede
+     mover. */
+  const exigible = esperada;
   const terminado = restantes < 0;
 
   /* Pero la semana EN CURSO no está vencida: sus tareas tienen toda la
@@ -149,13 +174,12 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
   const brechaTareas = -pendientesVencidas;
   const cumplimiento = tareasEsperadas > 0 ? hechasVencidas / tareasEsperadas : 1;
 
-  let estadoPlazo, veredictoPlazo;
-  if (terminado && desviacion >= 0) { estadoPlazo = "run"; veredictoPlazo = "Programa concluido"; }
-  else if (terminado) { estadoPlazo = "fault"; veredictoPlazo = `Venció el plazo en la semana ${declarada}`; }
-  else if (desviacion >= 1) { estadoPlazo = "run"; veredictoPlazo = `${desviacion} ${plural(desviacion, "semana")} adelante`; }
-  else if (desviacion === 0) { estadoPlazo = "run"; veredictoPlazo = "En tiempo"; }
-  else if (desviacion === -1) { estadoPlazo = "signal"; veredictoPlazo = "1 semana de retraso"; }
-  else { estadoPlazo = "fault"; veredictoPlazo = `${-desviacion} semanas de retraso`; }
+  /* El plazo ya no puede «ir retrasado» por sí solo: la semana que toca se
+     calcula del calendario, así que siempre coincide consigo misma. Lo único
+     que el plazo dice es si ya se acabó. El retraso real lo pone el estado de
+     las tareas, abajo. */
+  const estadoPlazo = "run";
+  const veredictoPlazo = terminado ? "Programa concluido" : "En tiempo";
 
   const estadoTareas = cumplimiento >= 0.95 ? "run" : cumplimiento >= 0.7 ? "signal" : "fault";
 
@@ -168,7 +192,14 @@ export function calendario(col, prog, hechasPorSemana, tareasTotales, hoy = new 
     : veredictoPlazo;
 
   return {
-    inicio, fin, finCalculado, semanas, declarada, esperada, exigible, cerradas, desviacion,
+    inicio, fin, finCalculado, semanas, declarada, esperada, exigible, cerradas,
+    /* Cuánto del programa lleva hecho (0 a 1), para contrastarlo con cuánto
+       del plazo lleva corrido. Sustituye a la «desviación» de semanas, que
+       medía un marcador que nadie movía.
+       Se llama avanceReal y no avanceTareas porque metricas() ya devuelve un
+       avanceTareas en PORCENTAJE, un nivel más arriba: dos nombres iguales
+       con escalas distintas terminan multiplicados o divididos por cien. */
+    avanceReal: tareasTotales ? tareasHechas / tareasTotales : 0,
     diasTotales, transcurridos, restantes, habilesTranscurridos, habilesRestantes,
     avanceCalendario, terminado,
     tareasEsperadas, tareasHechas, tareasTotales, hechasVencidas, adelantadas,

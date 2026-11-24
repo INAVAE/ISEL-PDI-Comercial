@@ -327,10 +327,15 @@ export function tarjetaConteo(titulo, valor, nota) {
 export function lineaTiempo(cal) {
   const W = 720, H = 82, m = 12, iw = W - m * 2, y = 42;
   const px = (semana) => m + ((semana - 0.5) / cal.semanas) * iw;
+  /* Las dos marcas son cuánto plazo ha corrido y cuánto trabajo lleva hecho.
+     Antes la segunda era la semana que el mentor había marcado a mano, que
+     no decía cuánto se había avanzado sino cuándo fue la última vez que
+     alguien movió el marcador. */
   const xEsperada = m + Math.max(0, Math.min(1, cal.avanceCalendario)) * iw;
-  const xReal = px(cal.declarada);
-  const atrasado = cal.desviacion < 0;
+  const xReal = m + Math.max(0, Math.min(1, cal.avanceReal || 0)) * iw;
+  const atrasado = (cal.avanceReal || 0) < cal.avanceCalendario;
   const colorReal = atrasado ? "var(--c-falla)" : "var(--c-exito)";
+  const pctHecho = Math.round((cal.avanceReal || 0) * 100);
 
   const marca = (x, color, etiqueta, arriba) => {
     const sx = Math.max(44, Math.min(W - 44, x));
@@ -350,7 +355,7 @@ export function lineaTiempo(cal) {
 
   return h("div", { class: "grafica" },
     h("svg", { viewBox: `0 0 ${W} ${H}`, class: "svg-chart svg-tiempo", role: "img",
-      "aria-label": `Semana ${cal.declarada} de ${cal.semanas}. ${cal.veredicto}.` },
+      "aria-label": `Semana ${cal.exigible} de ${cal.semanas}. ${pctHecho} % de las tareas hechas. ${cal.veredicto}.` },
       h("rect", { x: m, y: y - 6, width: iw, height: 12, rx: 6, fill: "var(--g-pista)" }),
       h("rect", { x: m, y: y - 6, width: Math.max(0, xEsperada - m), height: 12, rx: 6,
         fill: "var(--c-acero2)", opacity: .5 }),
@@ -358,8 +363,8 @@ export function lineaTiempo(cal) {
         x: Math.min(xReal, xEsperada), y: y - 6, width: Math.abs(xReal - xEsperada), height: 12,
         fill: colorReal, opacity: .4 }),
       ...separadores,
-      marca(xEsperada, "var(--graphite)", "debería ir aquí", true),
-      marca(xReal, colorReal, "semana " + cal.declarada, false)));
+      marca(xEsperada, "var(--graphite)", `semana ${cal.exigible} de ${cal.semanas}`, true),
+      marca(xReal, colorReal, `${pctHecho} % hecho`, false)));
 }
 
 export function panel(titulo, subtitulo, ...contenido) {

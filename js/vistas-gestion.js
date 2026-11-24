@@ -80,7 +80,10 @@ export function vistaResumen(ctx) {
         ...f.orden,
         obtener: (x) => ({
           nombre: x.col.nombre, sucursal: x.col.sucursal || "", avance: x.avance, score: x.score,
-          ritmo: x.cal.sinFecha ? -99 : (x.cal.desviacion ?? 0),
+          /* Ordenar por ritmo = por lo que se trae atrasado, de menos a más.
+             Antes ordenaba por la desviación del marcador de semana, que
+             dejó de existir. */
+          ritmo: x.cal.sinFecha ? 99 : (x.cal.pendientesVencidas ?? 0),
           visitas: x.visitas, solo: x.visitasSolo, opps: x.opps, pipeline: x.pipeline,
           ventas: x.ventas, cuentas: x.cuentas, planes: x.planes,
         })[f.orden.clave],

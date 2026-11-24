@@ -716,3 +716,10 @@ input[type=checkbox] { width: auto; }
   box-shadow: inset 0 0 0 2px var(--run);
 }
 .dias-envio .tab.activo::before { content: "\2713\00a0"; }
+
+/* --------------------------------------------- NAVEGACIÓN DE SEMANA ----- */
+/* Cuando se está mirando una semana que no es la en curso, junto al selector
+   aparece la vuelta atrás. Va en línea para que la barra superior no crezca:
+   un renglón más ahí empuja todo el encabezado. */
+.semana-nav { display: inline-flex; align-items: center; gap: 6px; }
+.semana-nav .btn { padding: 3px 9px; font-size: 11.5px; line-height: 1.4; }

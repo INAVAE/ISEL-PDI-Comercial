@@ -497,6 +497,6 @@ function metaDe(m, fuente) {
 
 function mesSugerido(ctx) {
   const col = ctx.estado.col;
-  const plan = (col.plan || [])[(col.semana_actual || 1) - 1];
+  const plan = (col.plan || [])[ctx.semanaVista() - 1];
   return plan ? plan.mes : 1;
 }

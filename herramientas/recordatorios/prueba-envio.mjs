@@ -32,7 +32,10 @@ const comprueba = (titulo, condicion, detalle = "") => {
 /* ----------------------------------------------------------- escenario --- */
 
 /* Un plan corto con fecha de inicio vieja, para que haya atraso real */
-const inicio = new Date(Date.now() - 20 * 86400000).toISOString().slice(0, 10);
+/* Catorce días: con semanas naturales deja las semanas 1 y 2 cerradas y la 3
+   en curso, que es lo que estos casos suponen. Con veinte, el plan de tres
+   semanas ya habría terminado y «la semana en curso» dejaría de existir. */
+const inicio = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
 const plan = [
   { id: "s1", tema: "Fundamentos", objetivo: "Conocer la cartera", tasks: [{ id: "t1", texto: "Leer el catálogo" }, { id: "t2", texto: "Mapear 10 cuentas" }] },
   { id: "s2", tema: "Prospección", objetivo: "Primeras llamadas", tasks: [{ id: "t1", texto: "20 llamadas" }, { id: "t2", texto: "Agendar 3 visitas" }] },
@@ -357,7 +360,7 @@ console.log("\nEl panorama");
       `columna ${r.nPendientes}, renglón ${r.cal.pendientesVencidas}`);
   }
   comprueba("la semana en curso no se cuenta como vencida",
-    registros.every(({ r }) => r.cal.cerradas === Math.max(0, r.cal.exigible - 1)));
+    registros.every(({ r }) => r.cal.cerradas === r.semanas - 1));
 
   comprueba("incluye al excluido del correo propio", /Beto Lara/.test(p.html), "falta Beto");
   comprueba("incluye a los cuatro del equipo",
@@ -407,6 +410,33 @@ console.log("\nEl panorama");
 
   writeFileSync(join(aqui, "correo-mentor.html"), combinado.html);
   console.log("       (correo combinado escrito en correo-mentor.html)");
+}
+
+console.log("\nUn plan que ya terminó");
+{
+  /* Cuando cierran todas las semanas no hay «semana en curso», y el asunto
+     decía «semana —», que no significa nada en la lista del correo. */
+  const viejo = col("cx", "Plan Concluido", {
+    fecha_inicio: new Date(Date.now() - 120 * 86400000).toISOString().slice(0, 10),
+  });
+  const r = resumenDe(viejo, { avance: [] });
+  comprueba("no queda ninguna semana en curso", r.estaSemana === null, JSON.stringify(r.estaSemana));
+  comprueba("y todo lo que falta cuenta como atrasado",
+    r.nPendientes === r.totales, `${r.nPendientes} de ${r.totales}`);
+  comprueba("la columna y el cálculo siguen de acuerdo",
+    r.cal.pendientesVencidas === r.nPendientes,
+    `columna ${r.nPendientes}, cálculo ${r.cal.pendientesVencidas}`);
+
+  const m = armarCorreo(viejo, r, "https://ejemplo.mx");
+  comprueba("el asunto no dice «semana —»", !/semana —/.test(m.asunto), m.asunto);
+  comprueba("dice que el programa concluyó", /programa concluido/i.test(m.asunto), m.asunto);
+
+  const todoHecho = resumenDe(viejo, {
+    avance: viejo.plan.flatMap((s) => s.tasks.map((t) => ({ tarea_id: `${s.id}:${t.id}`, hecho: true }))),
+  });
+  comprueba("y con todo marcado lo dice sin hablar de semanas",
+    armarCorreo(viejo, todoHecho, "").asunto === "Programa concluido: todo marcado",
+    armarCorreo(viejo, todoHecho, "").asunto);
 }
 
 servidor.close();
