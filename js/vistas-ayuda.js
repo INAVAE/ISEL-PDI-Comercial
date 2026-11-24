@@ -143,7 +143,7 @@ function seccionBuzon(ctx, pintar) {
           return s;
         })()),
         campo("En qué pantalla", entrada(f.pantalla, (v) => { f.pantalla = v; },
-          { placeholder: "Panel, Ruta de 20 semanas, KPIs…" }))),
+          { placeholder: "Panel, Plan de trabajo, KPIs…" }))),
       h("p", { class: "tiny", text: SUG_PISTA[f.tipo] || "" }),
       campo("En una línea, qué pasa", entrada(f.titulo, (v) => { f.titulo = v; },
         { placeholder: "El botón de evidencia no abre nada", maxlength: 140 }), "full"),

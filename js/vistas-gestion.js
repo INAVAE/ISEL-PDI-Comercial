@@ -134,7 +134,7 @@ export function vistaResumen(ctx) {
           barrasH(r.map((x) => x.col.nombre), r.map((x) => Number(x.score.toFixed(2))),
             { colores: r.map((x) => (x.score >= 4 ? "var(--c-exito)" : x.score >= 3 ? "var(--c-aviso)" : "var(--c-falla)")),
               formato: (v) => v.toFixed(2) })),
-        panel("Avance del plan de trabajo", "Porcentaje de tareas completadas de las 20 semanas.",
+        panel("Avance del plan de trabajo", "Porcentaje de tareas completadas de todas las semanas de su plan.",
           barrasH(r.map((x) => x.col.nombre), r.map((x) => x.avance), { formato: (v) => Math.round(v) + "%" })),
         panel("Actividad de campo", "Visitas totales y las que ya lidera solo.",
           barras(nombres, [

@@ -33,7 +33,7 @@ export const AYUDA = {
       titulo: "Qué es esta herramienta y qué no es",
       para: "Para qué sirve el expediente y hasta dónde llega.",
       pasos: [
-        ["Qué es", "El expediente vivo de un programa de 20 semanas que lleva a una persona de ventas internas a ventas externas. No es un reporte que se llena al final: es donde se va dejando la evidencia mientras ocurre."],
+        ["Qué es", "El expediente vivo de un programa de desarrollo que lleva a una persona de un puesto al siguiente. No es un reporte que se llena al final: es donde se va dejando la evidencia mientras ocurre."],
         ["Para quién", "Cuatro roles comparten la misma página y cada uno ve y toca lo que le corresponde: el colaborador en desarrollo, su mentor, el administrador del programa y quien solo consulta."],
         ["Qué mide", "Dos cosas distintas que conviene no confundir. El ritmo, que es si el programa va en tiempo. Y la graduación, que es si la persona ya reúne lo necesario para el puesto."],
         ["Qué NO hace", "No decide. Calcula puntos, marca riesgos y proyecta un dictamen, pero graduar o no a alguien es una decisión de personas, con el mentor y el gerente en la mesa."],
@@ -71,7 +71,7 @@ export const AYUDA = {
       pasos: [
         ["Da de alta la cuenta", "En Usuarios y roles, con su correo y el rol de colaborador. El sistema genera una contraseña provisional que hay que pasarle."],
         ["Registra su ficha", "En Colaboradores: nombre, edad, puesto actual, puesto deseado, correo, teléfono y sucursal."],
-        ["Pon las fechas", "La de inicio y la de término previsto. Si dejas vacío el término, el sistema lo calcula a 20 semanas. Estas fechas son las que alimentan todo el cálculo de ritmo."],
+        ["Pon las fechas", "La de inicio y la de término previsto. Si dejas vacío el término, el sistema lo calcula con las semanas que tenga su plan, cerrando en viernes. Estas fechas alimentan todo el cálculo de ritmo."],
         ["Vincúlalo a su cuenta", "Es el paso que se olvida. Sin esa liga, la persona entra pero no ve su propio expediente."],
         ["Configura su programa", "En Configurar programa se ajusta a esa persona: las semanas y sus tareas, las competencias con su nivel requerido, los KPIs con metas por mes y los criterios de graduación con sus puntos."],
         ["Califica el corte inicial", "En Competencias, el corte «Inicial». Es la línea base contra la que después se mide cuánto creció. Sin ella, el avance no se puede leer."],
@@ -83,7 +83,7 @@ export const AYUDA = {
       titulo: "La rutina de cada semana",
       para: "Lo que se repite 20 veces. Es el corazón del programa.",
       pasos: [
-        ["El colaborador empieza", "Nadie valida nada hasta que él capturó algo. En Ruta de 20 semanas abre su semana y palomea cada tarea al terminarla."],
+        ["El colaborador empieza", "Nadie valida nada hasta que él capturó algo. En Plan de trabajo abre su semana y palomea cada tarea al terminarla."],
         ["Con evidencia", "Cada tarea tiene un botón para agregar evidencia: una liga, un archivo o una descripción. Una tarea palomeada sin evidencia es una afirmación; con evidencia es un hecho."],
         ["Visitas el mismo día", "En Visitas de campo: empresa, fecha, tipo, si es cuenta nueva, los hallazgos y la próxima acción comprometida con su fecha."],
         ["Oportunidades y cuentas", "En Pipeline, cada oportunidad real con su etapa, valor y próxima acción. En Cuentas, el mapeo de las cuentas objetivo."],
@@ -112,7 +112,7 @@ export const AYUDA = {
         ["Ritmo del programa", "Compara en qué semana debería ir por calendario contra en qué semana la tiene marcada el mentor. El cálculo usa días hábiles y descuenta los festivos oficiales, así que un puente no genera un atraso falso."],
         ["Tacómetro de cumplimiento", "El porcentaje de tareas hechas de las semanas que YA CERRARON. La semana en curso no cuenta: sus tareas tienen toda la semana para hacerse. Verde arriba de 95 %, ámbar entre 70 y 95, rojo abajo de 70."],
         ["Tareas pendientes acumuladas", "No se reinicia cada semana. Lo que quedó pendiente en la semana 2 sigue contándose en la 9. Y adelantar trabajo de una semana futura no lo tapa: eso se reporta aparte."],
-        ["Semáforo por semana", "En Ruta de 20 semanas. Verde si está completa, ámbar a medias, rojo si ya venció y le faltan tareas. Gris es una semana que todavía no toca."],
+        ["Semáforo por semana", "En Plan de trabajo. Verde si está completa, ámbar a medias, rojo si ya venció y le faltan tareas. Gris es una semana que todavía no toca."],
         ["Puntos de graduación", "El medidor grande. Cada criterio cumplido suma puntos; la aguja es el avance hacia el dictamen."],
       ],
       ojo: "La combinación a la que hay que hacer caso: ritmo en verde y tacómetro en rojo. Significa que el marcador va al día pero la evidencia no. Por fuera parece que todo va bien.",
@@ -159,7 +159,7 @@ export const AYUDA = {
       titulo: "La plantilla base",
       para: "De dónde sale el programa de cada persona nueva. Solo para el administrador.",
       pasos: [
-        ["Qué es", "El programa estándar: 20 semanas con sus tareas, las competencias, los KPIs y los criterios de graduación con sus puntos y umbrales."],
+        ["Qué es", "El programa del que parte cada plan nuevo: 20 semanas con sus tareas, las competencias, los KPIs y los criterios de graduación con sus puntos y umbrales. Cada plan se puede alargar o acortar después, y no todos acaban con el mismo número de semanas."],
         ["Cuándo se usa", "Al registrar un colaborador, se le copia la plantilla tal como esté en ese momento."],
         ["Qué pasa si la cambias", "Los programas ya creados no se tocan. Cambiarla afecta solo a quien se registre después, y eso es a propósito: a nadie se le mueven las metas a media carrera."],
         ["Ajustes por persona", "Lo individual se hace en Configurar programa, sobre el expediente de esa persona, sin tocar la plantilla."],

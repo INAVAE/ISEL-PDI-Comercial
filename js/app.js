@@ -94,7 +94,7 @@ const MENU = [
      número es fijo: no se recalcula según lo que cada rol alcanza a ver, para
      que "el 6" signifique lo mismo para todos. */
   { id: "panel", n: 1, nombre: "Panel", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
-  { id: "ruta", n: 2, nombre: "Ruta de 20 semanas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
+  { id: "ruta", n: 2, nombre: "Plan de trabajo", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
   { id: "visitas", n: 3, nombre: "Visitas de campo", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
   { id: "pipeline", n: 4, nombre: "Pipeline", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
   { id: "cuentas", n: 5, nombre: "Cuentas", roles: TODOS, grupo: "Desarrollo", requiereCol: true },

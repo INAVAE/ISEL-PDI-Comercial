@@ -148,7 +148,7 @@ aparecer atrasada por algo que no estuvo en sus manos.
 El resumen general trae una columna de **Ritmo** con el veredicto de cada participante, que se
 puede ordenar para ver primero a quien más se ha rezagado.
 
-**Ruta de 20 semanas**. El programa mes por mes y semana por semana, con lista de verificación.
+**Plan de trabajo**. El programa mes por mes y semana por semana, con lista de verificación. El número de semanas lo decide cada plan: la plantilla base trae 20, pero un plan corto puede tener seis.
 El colaborador marca lo que completa y adjunta la evidencia; el mentor lo revisa.
 
 **Competencias**. Las 42 competencias en 11 grupos ponderados, con nivel inicial esperado,
@@ -238,7 +238,7 @@ index.html            Punto de entrada
 styles.css            Estilos
 schema.sql            Estructura y políticas de la base de datos
 js/config.js          Conexión con Supabase (lo único que debes editar)
-js/plantilla.js       Programa base de 20 semanas, competencias, KPIs y criterios
+js/plantilla.js       Programa base del que parte cada plan: 20 semanas, competencias, KPIs y criterios
 js/db.js              Acceso a datos y sesión
 js/ui.js              Componentes y gráficas en SVG
 js/metricas.js        Cálculo de scorecard, dictamen y comparativos
