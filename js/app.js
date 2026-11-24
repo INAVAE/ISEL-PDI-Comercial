@@ -4,13 +4,14 @@
 
 import { auth, miPerfil, colaboradores, cargarExpediente, plantilla, perfiles,
   enlaceRecuperacion, errorEnlace } from "./db.js";
-import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, iniciarTema, fecha, etiquetaRol } from "./ui.js";
+import { h, vaciar, boton, entrada, campo, aviso, lampara, cls, modal, cerrarModal, panel, dinero, botonTema, botonTemaIcono, iniciarTema, fecha, etiquetaRol } from "./ui.js";
 import { metricas } from "./metricas.js";
 import { vistaResumen, vistaColaboradores, vistaUsuarios, vistaPlantilla, vistaCuenta } from "./vistas-gestion.js";
 import { vistaPanel, vistaRuta, vistaCompetencias, vistaKpis, vistaGraduacion, vistaRiesgos, vistaConfiguracion } from "./vistas-programa.js";
 import { vistaVisitas, vistaPipeline, vistaCuentas, vistaCoaching } from "./vistas-actividad.js";
 import { vistaAyuda, recargarSugerencias } from "./vistas-ayuda.js";
 import { vistaRecordatorios } from "./vistas-recordatorios.js";
+import { icono } from "./iconos.js";
 
 const raiz = document.getElementById("app");
 
@@ -33,8 +34,19 @@ export const estado = {
      cambiarle el plan a nadie. */
   ui: { corteCompetencias: null, mesRuta: null, pestanaConfig: "plan", semanasAbiertas: null,
         semanaVista: null,
-        ayudaTab: "guia", ayudaCap: null, ayudaFaq: null, sugForm: null, sugFiltro: "" },
+        ayudaTab: "guia", ayudaCap: null, ayudaFaq: null, sugForm: null, sugFiltro: "",
+        rielPlegado: false },
 };
+
+/* ------------------------------------------------------ RIEL PLEGADO ----- */
+
+/* Plegado o desplegado se recuerda entre sesiones: quien trabaja en una
+   pantalla angosta lo quiere plegado siempre, y volver a plegarlo en cada
+   entrada sería pedirle lo mismo todos los días. En modo privado, o con el
+   almacenamiento bloqueado, simplemente no se recuerda. */
+const LLAVE_RIEL = "pdc-riel-plegado";
+const leerRiel = () => { try { return localStorage.getItem(LLAVE_RIEL) === "1"; } catch { return false; } };
+const guardarRiel = (v) => { try { localStorage.setItem(LLAVE_RIEL, v ? "1" : "0"); } catch { /* modo privado */ } };
 
 /* --------------------------------------------------- SEMANA EN FOCO ------ */
 
@@ -105,10 +117,21 @@ const MENU = [
   { id: "graduacion", n: 10, nombre: "Graduación", roles: TODOS, grupo: "Desarrollo", requiereCol: true },
   { id: "configuracion", nombre: "Configurar programa", roles: ["admin", "mentor"], grupo: "Administración", requiereCol: true },
   { id: "plantilla", nombre: "Plantilla base", roles: ["admin"], grupo: "Administración" },
-  { id: "usuarios", nombre: "Usuarios y roles", roles: ["admin"], grupo: "Administración" },
-  { id: "recordatorios", nombre: "Recordatorios", roles: ["admin"], grupo: "Administración" },
-  { id: "cuenta", nombre: "Mi cuenta", roles: TODOS, grupo: "Administración" },
 ];
+
+/* Lo que vive en el menú de la persona y no en el riel: su cuenta y la
+   administración de quién entra y a quién le llegan los correos. No es
+   navegación del programa —no se consulta mientras se revisa a alguien—,
+   así que ocupaba sitio en el riel sin ganárselo.
+   Cada entrada declara sus roles igual que el menú principal, y el filtro
+   es el mismo: un lector no ve «Usuarios y roles» por ningún camino. */
+const MENU_USUARIO = [
+  { id: "cuenta", nombre: "Mi cuenta", roles: TODOS },
+  { id: "recordatorios", nombre: "Recordatorios", roles: ["admin"] },
+  { id: "usuarios", nombre: "Usuarios y roles", roles: ["admin"] },
+];
+
+const menuUsuarioVisible = () => MENU_USUARIO.filter((x) => x.roles.includes(permisos.rol));
 
 const VISTAS = {
   resumen: vistaResumen, colaboradores: vistaColaboradores, usuarios: vistaUsuarios,
@@ -186,40 +209,65 @@ export async function elegirColaborador(id) {
 export function pintar() {
   const menu = MENU.filter((x) => x.roles.includes(permisos.rol));
   const disponible = menu.filter((x) => !x.requiereCol || estado.col);
-  /* La ayuda se abre desde la barra superior, no desde el menú, así que
-     no está en MENU y hay que dejarla pasar por su cuenta. */
-  if (estado.vista !== "ayuda" && !disponible.some((x) => x.id === estado.vista))
+  /* La ayuda y el menú de la persona se abren desde la barra superior, no
+     desde el riel, así que no están en MENU y hay que dejarlos pasar por su
+     cuenta. Se respetan los roles: lo que menuUsuarioVisible() no devuelve
+     tampoco se puede abrir escribiendo la vista. */
+  const fueraDelRiel = new Set(["ayuda", ...menuUsuarioVisible().map((x) => x.id)]);
+  if (!fueraDelRiel.has(estado.vista) && !disponible.some((x) => x.id === estado.vista))
     estado.vista = disponible[0] ? disponible[0].id : "cuenta";
 
   const grupos = [...new Set(menu.map((x) => x.grupo))];
+  const plegado = estado.ui.rielPlegado;
+
+  const alternarRiel = () => {
+    estado.ui.rielPlegado = !estado.ui.rielPlegado;
+    guardarRiel(estado.ui.rielPlegado);
+    conservandoScroll(pintar);
+  };
+
+  const botonPlegar = h("button", {
+    class: "rail-plegar", type: "button",
+    title: plegado ? "Mostrar los nombres del menú" : "Dejar solo los iconos del menú",
+    "aria-label": plegado ? "Desplegar el menú" : "Plegar el menú",
+    "aria-expanded": plegado ? "false" : "true",
+    onclick: alternarRiel,
+  }, icono(plegado ? "desplegar" : "plegar", 19));
+
   const rail = h("aside", { class: "rail" },
-    h("div", { class: "rail-marca" }, h("strong", { text: "ISEL" }), h("span", { text: "Plan de desarrollo comercial" })),
+    h("div", { class: "rail-marca" },
+      h("div", { class: "rail-cabeza" },
+        h("div", { class: "rail-nombre" },
+          h("strong", { text: "ISEL" }),
+          h("span", { text: "Plan de desarrollo comercial" })),
+        botonPlegar)),
     h("nav", {}, ...grupos.map((g) =>
       h("div", { class: "rail-grupo" },
         h("span", { class: "rail-grupo-tit", text: g }),
         ...menu.filter((x) => x.grupo === g).map((x) => {
           const bloqueado = x.requiereCol && !estado.col;
+          /* El título lleva el número además del nombre: plegado es lo único
+             que queda para saber cuál es cada icono, y desplegado no estorba. */
           return h("button", {
             class: cls("rail-btn", estado.vista === x.id && "activo", bloqueado && "inactivo"),
             disabled: bloqueado,
+            title: (x.n ? x.n + " · " : "") + x.nombre
+              + (bloqueado ? " (elige un colaborador primero)" : ""),
             onclick: () => ir(x.id),
           },
+            h("span", { class: "rail-ico" }, icono(x.id)),
             /* El número va en su propio elemento para que quede alineado en
                columna y el nombre no se desacomode entre un dígito y dos */
             x.n ? h("span", { class: "rail-n", text: x.n }) : null,
             h("span", { class: "rail-txt", text: x.nombre }));
         })))),
-    h("div", { class: "rail-pie" },
-      h("span", { class: "rail-quien", text: estado.perfil.nombre || estado.perfil.email }),
-      h("span", { class: "rail-rol", text: etiquetaRol(permisos.rol) }),
-      botonTema(),
-      boton("Cerrar sesión", async () => { await auth.salir(); location.reload(); }, "ghost")));
+    );
 
   const individual = !!(menu.find((x) => x.id === estado.vista) || {}).requiereCol;
   const barraSuperior = cabecera(individual);
   const lienzo = h("div", { class: "lienzo" });
 
-  vaciar(raiz).appendChild(h("div", { class: "app" }, rail,
+  vaciar(raiz).appendChild(h("div", { class: cls("app", plegado && "riel-plegado") }, rail,
     h("main", { class: "main" }, barraSuperior, lienzo)));
 
   try {
@@ -302,19 +350,23 @@ function cabecera(individual) {
       m && h("div", { class: "mini" }, h("span", { text: "Avance del plan" }), h("b", { text: m.avanceTareas + "%" })),
       m && h("div", { class: "mini" }, h("span", { text: "Scorecard" }), h("b", { text: m.score ? m.score.toFixed(2) : "—" })),
       m && h("div", { class: "mini" }, h("span", { text: "Dictamen" }), lampara(m.estado, m.dictamen))),
-    botonAyuda());
+    barraAcciones());
 }
 
-/* El botón de ayuda vive en la esquina de la barra superior y lo ve
-   cualquier rol: la duda de cómo se usa algo no distingue entre mentor y
-   colaborador. Va anclado y fuera del grupo de indicadores porque ese
-   grupo envuelve en pantallas angostas, y un elemento más ahí hacía
-   crecer la cabecera. El contador solo aparece para el administrador,
-   que es quien atiende el buzón. */
+/* Los tres controles de la esquina: ayuda, tema y la persona. Van anclados
+   y fuera del grupo de indicadores porque ese grupo envuelve en pantallas
+   angostas, y un elemento más ahí hacía crecer la cabecera. */
+function barraAcciones() {
+  return h("div", { class: "barra-acciones" }, botonAyuda(), botonTemaIcono(), menuUsuario());
+}
+
+/* La ayuda la ve cualquier rol: la duda de cómo se usa algo no distingue
+   entre mentor y colaborador. El contador solo aparece para el
+   administrador, que es quien atiende el buzón. */
 function botonAyuda() {
   const pend = permisos.esAdmin ? (estado.sugPendientes || 0) : 0;
   const b = h("button", {
-    class: cls("ayuda-btn", estado.vista === "ayuda" && "activo"),
+    class: cls("barra-ico", "ayuda-btn", estado.vista === "ayuda" && "activo"),
     title: "Ayuda: manual, preguntas frecuentes y buzón de observaciones",
     "aria-label": "Ayuda",
     onclick: () => ir("ayuda"),
@@ -322,6 +374,74 @@ function botonAyuda() {
     iconoAyuda(),
     pend ? h("span", { class: "ayuda-pin", text: String(pend) }) : null);
   return b;
+}
+
+/* Iniciales para el botón de la persona. Dos letras como mucho: con tres
+   hay que encoger la tipografía y el círculo deja de leerse de un vistazo. */
+const iniciales = (nombre, correo) => {
+  const partes = String(nombre || "").trim().split(/\s+/).filter(Boolean);
+  if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
+  if (partes.length === 1) return partes[0].slice(0, 2).toUpperCase();
+  return String(correo || "?").slice(0, 2).toUpperCase();
+};
+
+/* El menú de la persona: quién es, qué puede administrar y la salida.
+   Se abre y se cierra por su cuenta, sin pasar por estado.ui, porque
+   pintar() reconstruye la página entera y un menú abierto guardado en el
+   estado reaparecería tras cualquier refresco de fondo. */
+function menuUsuario() {
+  const perfil = estado.perfil;
+  const items = menuUsuarioVisible();
+
+  const btn = h("button", {
+    class: "barra-ico usuario-btn", type: "button",
+    title: `${perfil.nombre || perfil.email} · ${etiquetaRol(permisos.rol)}`,
+    "aria-label": "Menú de tu cuenta",
+    "aria-haspopup": "menu", "aria-expanded": "false",
+  }, h("span", { class: "usuario-ini", text: iniciales(perfil.nombre, perfil.email) }));
+
+  const lista = h("div", { class: "usuario-menu", role: "menu", hidden: true },
+    h("div", { class: "usuario-quien" },
+      h("b", { text: perfil.nombre || "Sin nombre" }),
+      h("span", { class: "usuario-correo", text: perfil.email || "" }),
+      h("span", { class: "usuario-rol", text: etiquetaRol(permisos.rol) })),
+    h("div", { class: "usuario-sep" }),
+    ...items.map((x) => h("button", {
+      class: cls("usuario-op", estado.vista === x.id && "activo"),
+      type: "button", role: "menuitem",
+      onclick: () => { cerrar(); ir(x.id); },
+    }, h("span", { class: "rail-ico" }, icono(x.id)), h("span", { text: x.nombre }))),
+    h("div", { class: "usuario-sep" }),
+    h("button", {
+      class: "usuario-op", type: "button", role: "menuitem",
+      onclick: async () => { cerrar(); await auth.salir(); location.reload(); },
+    }, h("span", { class: "rail-ico" }, icono("salir")), h("span", { text: "Cerrar sesión" })));
+
+  const caja = h("div", { class: "usuario-caja" }, btn, lista);
+
+  function fuera(e) {
+    /* Si pintar() ya se llevó este menú del documento, el oyente sobra */
+    if (!document.contains(caja) || !caja.contains(e.target)) cerrar();
+  }
+  function tecla(e) { if (e.key === "Escape") { cerrar(); btn.focus(); } }
+
+  function cerrar() {
+    lista.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+    document.removeEventListener("click", fuera, true);
+    document.removeEventListener("keydown", tecla, true);
+  }
+  function abrir() {
+    lista.hidden = false;
+    btn.setAttribute("aria-expanded", "true");
+    /* En captura y añadidos dentro del propio clic: el clic que abre ya
+       pasó por el documento, así que no se cierra solo al instante. */
+    document.addEventListener("click", fuera, true);
+    document.addEventListener("keydown", tecla, true);
+  }
+
+  btn.addEventListener("click", (e) => { e.stopPropagation(); lista.hidden ? abrir() : cerrar(); });
+  return caja;
 }
 
 function iconoAyuda() {
@@ -491,5 +611,6 @@ async function continuarArranque() {
 auth.alCambiar((s, evt) => {
   if (evt === "SIGNED_OUT" && estado.perfil) location.reload();
 });
+estado.ui.rielPlegado = leerRiel();
 iniciarTema();
 arrancar();

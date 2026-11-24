@@ -95,6 +95,22 @@ export function botonTema() {
   return btn;
 }
 
+/* El mismo interruptor, reducido a su icono, para la esquina de la barra
+   superior. Ahí no hay sitio para la etiqueta y el sol o la luna ya dicen
+   a qué se cambia; el texto vive en el título. */
+export function botonTemaIcono() {
+  const btn = h("button", { class: "barra-ico", type: "button" });
+  const pintar = () => {
+    const oscuro = temaActual() === "oscuro";
+    btn.title = oscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro";
+    btn.setAttribute("aria-label", btn.title);
+    vaciar(btn).append(oscuro ? iconoSol() : iconoLuna());
+  };
+  btn.addEventListener("click", () => { alternarTema(); pintar(); });
+  pintar();
+  return btn;
+}
+
 const iconoSol = () => h("svg", { viewBox: "0 0 24 24", class: "icono", "aria-hidden": "true" },
   h("circle", { cx: 12, cy: 12, r: 4.6, fill: "currentColor" }),
   ...[0, 45, 90, 135, 180, 225, 270, 315].map((g) => {

@@ -215,8 +215,8 @@ h1, h2, h3, h4, h5 { font-family: 'Barlow Condensed', 'IBM Plex Sans', sans-seri
 .main { flex: 1; min-width: 0; }
 
 .barra-estado { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap;
-  /* El hueco de la derecha lo ocupa el botón de ayuda, anclado */
-  padding: 18px 74px 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+  /* El hueco de la derecha lo ocupan los tres controles anclados */
+  padding: 18px 150px 18px 28px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
 .barra-estado h1 { font-size: 27px; margin: 0; letter-spacing: .01em; }
 .barra-estado p { margin: 2px 0 0; color: var(--graphite); font-size: 12.5px; }
 .barra-estado-der { display: flex; gap: 22px; align-items: flex-end; flex-wrap: wrap; }
@@ -601,13 +601,7 @@ input[type=checkbox] { width: auto; }
 
 /* Botón de la barra superior. Se alinea con los demás "mini" de la barra,
    que están pegados abajo, y por eso lleva su propio margen inferior. */
-.ayuda-btn { position: absolute; top: 17px; right: 24px;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--line); background: var(--panel); color: var(--graphite);
-  cursor: pointer; font: inherit; }
-.ayuda-btn:hover { color: var(--steel); border-color: var(--graphite); }
-.ayuda-btn.activo { background: var(--accion-fondo); color: var(--accion-texto); border-color: var(--accion-fondo); }
+.ayuda-btn { position: relative; }
 /* Contador de observaciones sin revisar; solo lo ve el administrador */
 .ayuda-pin { position: absolute; top: -5px; right: -5px; min-width: 17px; height: 17px; padding: 0 4px;
   border-radius: 9px; background: var(--fault); color: #FFF; font-size: 10.5px; font-weight: 700;
@@ -723,3 +717,103 @@ input[type=checkbox] { width: auto; }
    un renglón más ahí empuja todo el encabezado. */
 .semana-nav { display: inline-flex; align-items: center; gap: 6px; }
 .semana-nav .btn { padding: 3px 9px; font-size: 11.5px; line-height: 1.4; }
+
+/* ===================================================== RIEL PLEGABLE ===== */
+/* El riel ocupaba 226 px fijos y el contenido pagaba la cuenta: en la
+   pantalla de KPIs, con cinco columnas de meses, los nombres de los
+   indicadores salían cortados. Plegado baja a 62 px y deja de competir. */
+
+.rail-cabeza { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.rail-nombre { min-width: 0; }
+.rail-plegar, .rail-salir {
+  background: none; border: 0; color: var(--rail-tenue); cursor: pointer;
+  padding: 6px; border-radius: 5px; display: flex; flex: 0 0 auto; line-height: 0;
+}
+.rail-plegar:hover, .rail-salir:hover { background: var(--rail-hover); color: var(--rail-fuerte); }
+.rail-plegar:focus-visible, .rail-salir:focus-visible { outline: 2px solid var(--rail-fuerte); outline-offset: 1px; }
+
+/* El icono no se encoge aunque el nombre del módulo sea largo */
+.rail-ico { flex: 0 0 18px; display: flex; line-height: 0; }
+.rail-btn { align-items: center; }
+
+.riel-plegado .rail { width: 62px; flex: 0 0 62px; }
+/* Todo lo que es texto desaparece; lo que queda es icono y estado */
+.riel-plegado .rail-nombre span,
+.riel-plegado .rail-grupo-tit,
+.riel-plegado .rail-n,
+.riel-plegado .rail-txt,
+.riel-plegado .rail-quien,
+.riel-plegado .rail-rol,
+.riel-plegado .btn-tema span { display: none; }
+
+.riel-plegado .rail-marca { padding: 14px 8px 12px; }
+.riel-plegado .rail-cabeza { flex-direction: column; align-items: center; gap: 8px; }
+.riel-plegado .rail-nombre strong { font-size: 19px; letter-spacing: .04em; }
+.riel-plegado .rail nav { padding: 10px 7px; }
+.riel-plegado .rail-grupo { margin-bottom: 10px; }
+/* Una línea tenue en lugar del título del grupo: sin ella los diez módulos
+   quedan en una tira continua y se pierde dónde acaba cada bloque. */
+.riel-plegado .rail-grupo + .rail-grupo { border-top: 1px solid var(--rail-borde); padding-top: 10px; }
+.riel-plegado .rail-btn { justify-content: center; padding: 9px 0; gap: 0; }
+.riel-plegado .rail-pie { padding: 12px 7px; align-items: center; gap: 8px; }
+.riel-plegado .btn-tema { padding: 6px; justify-content: center; }
+
+/* En pantallas angostas el riel desplegado se come media ventana, así que
+   arranca plegado solo. Quien lo despliegue a mano gana, porque la clase
+   del contenedor pesa más que esta regla. */
+@media (max-width: 900px) {
+  .app:not(.riel-plegado) .rail { width: 180px; flex: 0 0 180px; }
+}
+
+/* ============================= CONTROLES DE LA BARRA SUPERIOR =========== */
+/* Ayuda, tema y la persona. Anclados a la esquina y no dentro del grupo de
+   indicadores: ese grupo envuelve en pantallas angostas y cada elemento que
+   se le añade hace crecer la cabecera. */
+
+.barra-acciones { position: absolute; top: 15px; right: 20px;
+  display: flex; align-items: center; gap: 8px; }
+
+.barra-ico { display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--panel); color: var(--graphite);
+  cursor: pointer; font: inherit; }
+.barra-ico:hover { color: var(--steel); border-color: var(--graphite); }
+.barra-ico.activo { background: var(--accion-fondo); color: var(--accion-texto); border-color: var(--accion-fondo); }
+/* El interruptor de tema hereda .icono del botón grande, que lo fija en 15 px */
+.barra-ico .icono { width: 17px; height: 17px; flex: 0 0 17px; color: inherit; }
+
+/* --- menú de la persona --- */
+.usuario-caja { position: relative; }
+.usuario-btn { background: var(--accion-fondo); color: var(--accion-texto); border-color: var(--accion-fondo); }
+.usuario-btn:hover { background: var(--accion-hover); color: var(--accion-texto); border-color: var(--accion-hover); }
+.usuario-ini { font-size: 12px; font-weight: 600; letter-spacing: .03em; }
+
+.usuario-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 40;
+  min-width: 232px; padding: 6px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .14); }
+.usuario-menu[hidden] { display: none; }
+
+.usuario-quien { display: flex; flex-direction: column; gap: 2px; padding: 9px 11px 10px; }
+.usuario-quien b { font-size: 13.5px; }
+.usuario-correo { font-size: 11.5px; color: var(--graphite); word-break: break-all; }
+.usuario-rol { font-size: 11px; color: var(--graphite); margin-top: 3px;
+  background: var(--panel2); border: 1px solid var(--line); border-radius: 3px;
+  padding: 1px 6px; align-self: flex-start; }
+
+.usuario-sep { height: 1px; background: var(--line); margin: 4px 0; }
+
+.usuario-op { display: flex; align-items: center; gap: 10px; width: 100%;
+  background: none; border: 0; border-radius: 4px; padding: 8px 11px;
+  font: inherit; font-size: 13px; color: var(--steel); text-align: left; cursor: pointer; }
+.usuario-op:hover { background: var(--panel2); }
+.usuario-op.activo { background: var(--accion-fondo); color: var(--accion-texto); }
+.usuario-op .rail-ico { color: var(--graphite); }
+.usuario-op:hover .rail-ico, .usuario-op.activo .rail-ico { color: inherit; }
+
+/* En pantallas angostas la cabecera ya envuelve: los controles bajan con
+   ella y el hueco reservado deja de hacer falta. */
+@media (max-width: 760px) {
+  .barra-estado { padding-right: 28px; padding-top: 58px; }
+  .barra-acciones { top: 14px; right: 16px; }
+}
