@@ -881,14 +881,16 @@ function editorCompetencias(prog, guardar) {
 
   const render = () => {
     cont.replaceChildren();
-    const sumaPesos = grupos.reduce((a, g) => a + (Number(g.peso) || 0), 0);
+    const total = celdaTotal(
+      () => grupos.reduce((a, g) => a + (Number(g.peso) || 0), 0),
+      (el, v) => { el.textContent = v + "%"; el.className = v === 100 ? "verde-fuerte" : "rojo"; });
 
     cont.appendChild(panel("Grupos y ponderación",
       "La suma de los pesos debería dar 100. El scorecard usa estos pesos para calcular el promedio ponderado.",
       tabla(["Grupo", { t: "Peso %", num: true }, { t: "Competencias", num: true }, ""],
         [...grupos.map((g, i) => h("tr", {},
           h("td", {}, entrada(g.nombre, (v) => { g.nombre = v; })),
-          h("td", { class: "num" }, entrada(g.peso, (v) => { g.peso = Number(v) || 0; render(); }, { type: "number", min: 0, max: 100 })),
+          h("td", { class: "num" }, entrada(g.peso, (v) => { g.peso = Number(v) || 0; total.refrescar(); }, { type: "number", min: 0, max: 100 })),
           h("td", { class: "num", text: String(comps.filter((c) => c.grupo === g.id).length) }),
           h("td", { class: "acciones" }, boton("Quitar", () => {
             if (comps.some((c) => c.grupo === g.id)) { aviso("Primero mueve o quita las competencias de este grupo", "error"); return; }
@@ -896,7 +898,7 @@ function editorCompetencias(prog, guardar) {
           }, "ghost")))),
         h("tr", { class: "fila-total" },
           h("td", {}, h("b", { text: "Suma de pesos" })),
-          h("td", { class: "num" }, h("b", { class: sumaPesos === 100 ? "verde-fuerte" : "rojo", text: sumaPesos + "%" })),
+          h("td", { class: "num" }, total.el),
           h("td", { class: "num", text: String(comps.length) }), h("td", {}))]),
       h("div", { class: "acciones-fila" },
         boton("Agregar grupo", () => { grupos.push({ id: "g" + uid(), nombre: "Nuevo grupo", peso: 0 }); render(); }, "ghost"))));
@@ -956,6 +958,26 @@ function editorKpis(prog, guardar) {
   return cont;
 }
 
+/* Celda de total que se recalcula sola.
+
+   Estas tablas llamaban a render() en cada pulsación para refrescar su suma,
+   y render() reconstruye el panel entero: el campo que tenía el foco se
+   destruía y se creaba otro en su lugar. Escribir «30» obligaba a hacer clic
+   entre el 3 y el 0, y el valor se tomaba carácter por carácter.
+
+   Con esto la suma sigue viva mientras se teclea, pero lo único que cambia
+   en la pantalla es el número del total: el campo donde se escribe no se
+   toca, así que el foco se queda donde estaba.
+
+   `pintar` recibe la celda y el valor, para que cada tabla decida si además
+   le cambia el color. */
+function celdaTotal(calcular, pintar) {
+  const el = h("b", {});
+  const refrescar = () => pintar(el, calcular());
+  refrescar();
+  return { el, refrescar };
+}
+
 /* --- editor de criterios -------------------------------------------------- */
 
 function editorCriterios(prog, col, guardar) {
@@ -966,7 +988,9 @@ function editorCriterios(prog, col, guardar) {
 
   const render = () => {
     cont.replaceChildren();
-    const suma = criterios.reduce((a, c) => a + (Number(c.puntos) || 0), 0);
+    const total = celdaTotal(
+      () => criterios.reduce((a, c) => a + (Number(c.puntos) || 0), 0),
+      (el, v) => { el.textContent = String(v); });
 
     cont.appendChild(panel("Criterios de graduación",
       "Cada criterio se compara automáticamente contra la evidencia cargada, salvo los de verificación manual. Los puntos se normalizan a 100.",
@@ -975,11 +999,11 @@ function editorCriterios(prog, col, guardar) {
           h("td", {}, entrada(c.nombre, (v) => { c.nombre = v; })),
           h("td", {}, seleccion(c.fuente, FUENTES_CRITERIO.map((f) => ({ id: f.id, nombre: f.nombre })), (v) => { c.fuente = v; })),
           h("td", { class: "num" }, entrada(c.meta, (v) => { c.meta = Number(v); }, { type: "number", min: 0 })),
-          h("td", { class: "num" }, entrada(c.puntos, (v) => { c.puntos = Number(v) || 0; render(); }, { type: "number", min: 0 })),
+          h("td", { class: "num" }, entrada(c.puntos, (v) => { c.puntos = Number(v) || 0; total.refrescar(); }, { type: "number", min: 0 })),
           h("td", { class: "acciones" }, boton("Quitar", () => { criterios.splice(i, 1); render(); }, "ghost")))),
         h("tr", { class: "fila-total" },
           h("td", {}, h("b", { text: "Suma de puntos" })), h("td", { class: "gris", text: "se normaliza a 100" }),
-          h("td", {}), h("td", { class: "num" }, h("b", { text: String(suma) })), h("td", {}))]),
+          h("td", {}), h("td", { class: "num" }, total.el), h("td", {}))]),
       h("div", { class: "acciones-fila" },
         boton("Agregar criterio", () => {
           criterios.push({ id: "x" + uid(), nombre: "Nuevo criterio", fuente: "manual", meta: 1, puntos: 5 });
@@ -1009,12 +1033,18 @@ function editorPlanVisitas(prog, guardar) {
     cont.appendChild(panel("Plan de campo por mes",
       "Cuántas visitas debe observar, acompañar, liderar con apoyo y liderar solo en cada mes.",
       tabla([{ t: "Mes", num: true }, { t: "Observa", num: true }, { t: "Acompañado", num: true }, { t: "Lidera acompañado", num: true }, { t: "Lidera solo", num: true }, { t: "Total", num: true }, ""],
-        pv.map((p, i) => h("tr", {},
-          h("td", { class: "num" }, entrada(p.mes, (v) => { p.mes = Number(v); }, { type: "number", min: 1 })),
-          ...["observa", "acompanado", "lidera", "autonoma"].map((k) =>
-            h("td", { class: "num" }, entrada(p[k], (v) => { p[k] = Number(v) || 0; render(); }, { type: "number", min: 0 }))),
-          h("td", { class: "num mono", text: String(p.observa + p.acompanado + p.lidera + p.autonoma) }),
-          h("td", { class: "acciones" }, boton("Quitar", () => { pv.splice(i, 1); render(); }, "ghost"))))),
+        pv.map((p, i) => {
+          /* Aquí el total es de cada renglón, no de la tabla */
+          const total = celdaTotal(
+            () => ["observa", "acompanado", "lidera", "autonoma"].reduce((a, k) => a + (Number(p[k]) || 0), 0),
+            (el, v) => { el.textContent = String(v); });
+          return h("tr", {},
+            h("td", { class: "num" }, entrada(p.mes, (v) => { p.mes = Number(v); }, { type: "number", min: 1 })),
+            ...["observa", "acompanado", "lidera", "autonoma"].map((k) =>
+              h("td", { class: "num" }, entrada(p[k], (v) => { p[k] = Number(v) || 0; total.refrescar(); }, { type: "number", min: 0 }))),
+            h("td", { class: "num mono" }, total.el),
+            h("td", { class: "acciones" }, boton("Quitar", () => { pv.splice(i, 1); render(); }, "ghost")));
+        })),
       h("div", { class: "acciones-fila" },
         boton("Agregar mes", () => { pv.push({ mes: pv.length + 1, observa: 0, acompanado: 0, lidera: 0, autonoma: 0 }); render(); }, "ghost"),
         boton("Guardar plan de campo", () => guardar({ plan_visitas: pv }, "Plan de campo actualizado")))));
@@ -1053,15 +1083,17 @@ function editorExamen(prog, guardar) {
   const cont = h("div", {});
   const render = () => {
     cont.replaceChildren();
-    const suma = examen.reduce((a, e) => a + (Number(e.peso) || 0), 0);
+    const total = celdaTotal(
+      () => examen.reduce((a, e) => a + (Number(e.peso) || 0), 0),
+      (el, v) => { el.textContent = v + "%"; el.className = v === 100 ? "verde-fuerte" : "rojo"; });
     cont.appendChild(panel("Componentes del examen final", "La suma de los pesos debería dar 100.",
       tabla(["Componente", { t: "Peso %", num: true }, ""],
         [...examen.map((e, i) => h("tr", {},
           h("td", {}, entrada(e.nombre, (v) => { e.nombre = v; })),
-          h("td", { class: "num" }, entrada(e.peso, (v) => { e.peso = Number(v) || 0; render(); }, { type: "number", min: 0, max: 100 })),
+          h("td", { class: "num" }, entrada(e.peso, (v) => { e.peso = Number(v) || 0; total.refrescar(); }, { type: "number", min: 0, max: 100 })),
           h("td", { class: "acciones" }, boton("Quitar", () => { examen.splice(i, 1); render(); }, "ghost")))),
         h("tr", { class: "fila-total" }, h("td", {}, h("b", { text: "Suma" })),
-          h("td", { class: "num" }, h("b", { class: suma === 100 ? "verde-fuerte" : "rojo", text: suma + "%" })), h("td", {}))]),
+          h("td", { class: "num" }, total.el), h("td", {}))]),
       h("div", { class: "acciones-fila" },
         boton("Agregar componente", () => { examen.push({ id: "e" + uid(), nombre: "Nuevo componente", peso: 0 }); render(); }, "ghost"),
         boton("Guardar examen", () => guardar({ examen }, "Examen actualizado")))));
